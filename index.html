@@ -523,6 +523,10 @@ button{min-height:36px;}
       <div class="prod-tab-icon">💰</div>
       <div class="prod-tab-name">MaxiLink One<br><span style="font-weight:400;opacity:0.7;">Single Pay</span></div>
     </div>
+    <div class="prod-tab" id="tab_mxprime" onclick="switchProduct('mxprime')">
+      <div class="prod-tab-icon">✨</div>
+      <div class="prod-tab-name">MaxiLink Prime<br><span style="font-weight:400;opacity:0.7;">Regular Pay</span></div>
+    </div>
     <div class="prod-tab" id="tab_spm" onclick="switchProduct('spm')">
       <div class="prod-tab-icon">🌏</div>
       <div class="prod-tab-name">Peso Maximizer<br><span style="font-weight:400;opacity:0.7;">ProIncome</span></div>
@@ -3413,6 +3417,288 @@ function renderMX1View(id, d, pdfUrl){
   container.appendChild(div);
   calcMX1WhatIf(id);
 }
+
+// ══════════════════════════════════════
+//  MXPRIME (Sun MaxiLink Prime — Regular Premium VUL) PARSER
+// ══════════════════════════════════════
+
+// ══════════════════════════════════════
+//  MXPRIME (Sun MaxiLink Prime — Regular Premium VUL) PARSER
+// ══════════════════════════════════════
+function parseMXPrime(text, filename){
+  const get=(p,fb='—')=>{const m=text.match(p);return m?m[1].trim():fb;};
+  const nameRaw=get(/On the Life of\s*:\s*([A-Z][A-Z\s,()]+?)(?=Age Last Birthday|Currency|\n)/i,'Unknown');
+  const name=nameRaw.replace(/\(CLIENT\)/i,'').trim();
+  const age=get(/Age Last Birthday\s*:\s*(\d+\s*\([^)]+\))/i);
+  const ageNum=(function(){const n=parseInt(age);return isNaN(n)?30:n;})();
+  const smoker=/Non.Smoker/i.test(text)?'Non-Smoker':'Smoker';
+
+  // Face Amount + Regular Premium appear together as the two Ps values immediately
+  // following the "(Guaranteed Death Benefit... equivalent to Ps X.XX)" parenthetical —
+  // anchoring there avoids accidentally matching that parenthetical's own Ps figure.
+  const faceRegPremMatch=text.match(/\)\s*Ps\s*([\d,]+\.\d{2})\s*Ps\s*([\d,]+\.\d{2})/);
+  const faceAmt=faceRegPremMatch?faceRegPremMatch[1]:(get(/Face Amount\s*Ps\s*([\d,]+\.\d{2})/i)||'500,000.00');
+  const faceInt=parseInt(faceAmt.replace(/,/g,'').replace(/\..*/,''))||500000;
+  const regPremium=faceRegPremMatch?faceRegPremMatch[2]:'0.00';
+  const tdb=get(/Total Disability Benefit[\s\S]{0,60}?Ps\s*([\d,]+\.\d{2})/i)||'0.00';
+  const adbAmt=get(/Accidental Death Benefit[^P]*?Ps\s*([\d,]+\.\d{2})\s*Ps\s*([\d,]+\.\d{2})/i);
+  let adbFace='—', adbPrem='0.00';
+  {
+    const m=text.match(/Accidental Death Benefit\s*-\s*ADB\s*Ps\s*([\d,]+\.\d{2})\s*Ps\s*([\d,]+\.\d{2})/i);
+    if(m){ adbFace=m[1]; adbPrem=m[2]; }
+  }
+  const totalAnnualRegPremium=get(/Total Annual Regular Premium\s*Ps\s*([\d,]+\.\d{2})/i)||'0.00';
+  const excessPremium=get(/Annual Excess Premium[^P]*Ps\s*([\d,]+\.\d{2})/i)||'0.00';
+  const totalPremiumBilled=get(/Total Annual Premium \(to be Billed Regularly\)\s*Ps\s*([\d,]+\.\d{2})/i)||totalAnnualRegPremium;
+  const totalBilledInt=parseInt(totalPremiumBilled.replace(/,/g,'').replace(/\..*/,''))||0;
+  const payPeriodMatch=get(/payable for\s*(\d+)\s*years?/i,'10');
+  const payYears=parseInt(payPeriodMatch)||10;
+  const coverageAge=get(/until age\s*(\d+)/i,'88');
+
+  // Fund allocation — same anchor pattern as MX1.
+  const fundMatchA=text.match(/Illustration of Benefits\s*-\s*([A-Za-z][A-Za-z\s]+?Fund)\s*\((\d+(?:\.\d+)?)\s*%\)/);
+  const fundMatchB=text.match(/100%\s*[|]?\s*([A-Za-z][A-Za-z\s]+?Fund)(?:\s|$|\n|[^a-zA-Z])/);
+  const fund=fundMatchA?fundMatchA[1].trim():(fundMatchB?fundMatchB[1].trim():'Peso Global Tech Growth Fund');
+  const fundPct=fundMatchA?(parseFloat(fundMatchA[2])||100):100;
+
+  const FUND_DESCRIPTIONS={
+    'Growth Fund':'The Fund is designed to produce long term capital appreciation through investment in high quality stocks that are diversified across sectors.',
+    'Income Fund':'The Fund is designed to stay invested only in high-quality fixed income instruments that are classified as below average risk.',
+    'Opportunity Fund':'The Fund is designed to provide optimum returns consisting of current income and capital growth through investment in a mix of fixed-income and equity instruments.',
+    'MyFuture Fund':'The Fund is a target date fund that will invest primarily in high-quality stocks and a mix of government and domestic corporate debt in accordance with an asset allocation strategy that will become increasingly conservative as the maturity of the fund approaches.',
+    'Growth PLUS Fund':'The Fund is designed mainly to generate long-term capital appreciation through investment in high-quality equity and equity-linked securities, diversified across sectors, which distribute periodic dividends and provide sustainable dividend yields.',
+    'Index Fund':'The Fund is designed mainly to generate long-term capital appreciation through investment in high-quality equities comprised of constituents of the Philippine Stock Exchange Index (PSEi).',
+    'Captains Fund':'The Fund is designed mainly to generate long-term capital appreciation primarily through investment in equity and equity-linked securities diversified across sectors.',
+    'Money Market Fund':'The Fund is designed to maximize yields on short to medium-term placements, while ensuring adequate liquidity for holders of the Fund. Available only for fund switching/transfers.',
+    'Opportunity Tracker Fund':'The Fund is designed to provide optimum returns consisting of current income and capital growth through investment in a mix of fixed-income and equity instruments.',
+    'Peso Global Income Fund':'The Fund aims to generate long-term capital appreciation by converting Philippine Pesos (PHP) into US Dollars (USD) and investing into USD-denominated high-quality fixed income and fixed income-linked instruments as well as diversified investment companies/funds invested in such securities.',
+    'Peso Global Opportunity Fund':'The Fund aims to generate long-term capital appreciation by converting Philippine Pesos (PHP) into US Dollars (USD) and investing into USD-denominated high quality equity and equity-linked securities, as well as high-quality fixed income and fixed income-linked instruments as well as diversified investment companies/funds invested in such securities.',
+    'Peso Global Growth Fund':'The Fund aims to generate long-term capital appreciation by converting Philippine Pesos (PHP) into US Dollars (USD) and investing into USD-denominated high quality equity and equity-linked securities, as well as diversified investment companies/funds invested in such securities.',
+    'Peso Global Opportunity Payout Fund':'The Fund aims to generate a steady stream of payouts sourced from earnings generated by converting Philippine Peso (PHP) into US Dollars (USD) and investing in a diversified portfolio of investment securities.',
+    'Peso Global Sustainability Growth Fund':'The Fund aims to generate long-term capital appreciation while striving to follow Environmental, Social and Governance (ESG) investing principles by investing into ESG-tilted USD-denominated high-quality equity and equity-linked securities, as well as diversified investment companies/funds invested in such securities.',
+    'Peso Global Tech Payout Fund':'The Fund aims to generate earnings by investing in a US Dollar-denominated target fund that primarily invests in the technology sector. The Fund will be Philippine Peso-denominated, such that fund value will be affected by currency fluctuations. The Fund aims to provide payouts to the policy owner.',
+    'Peso Global Tech Growth Fund':'The Fund aims to generate long-term capital appreciation from earnings generated by investing in a US Dollar-denominated target fund that primarily invests in the technology sector. The Fund will be Philippine Peso-denominated, such that fund value will be affected by currency fluctuations.',
+  };
+  const fundDesc=FUND_DESCRIPTIONS[fund]||'Fund description not available. Please refer to the Product Proposal document for details.';
+
+  // ── Illustration of Benefits table — same growth-fund shape as MX1 (Policy Fund
+  // Value + Death Benefit at 3%/6%/7%), reusing that exact proven tokenizer.
+  const rows=[];
+  const altMatch=/Alternative\s+Product\s+Offering/i.exec(text);
+  const mainText=altMatch?text.slice(0,altMatch.index):text;
+  const pbRx=/PROJECTED\s*BENEFITS/g;
+  const pfvBodies=[];
+  let pbm;
+  while((pbm=pbRx.exec(mainText))!==null){
+    const pbIdx=pbm.index;
+    const headerWindow=mainText.slice(pbIdx,pbIdx+260);
+    const endMatch=/investment\s+returns/i.exec(mainText.slice(pbIdx));
+    const bodyEnd=endMatch?pbIdx+endMatch.index:pbIdx+6000;
+    const hasDB=/Death\s*Benefit/i.test(headerWindow);
+    const is3pct=/3\s*%/.test(headerWindow) && /6\s*%/.test(headerWindow) && /7\s*%/.test(headerWindow);
+    if(hasDB && is3pct){
+      const pctMatch=/7\s*%/.exec(headerWindow);
+      let bodyStart=pctMatch?pbIdx+pctMatch.index+pctMatch[0].length:pbIdx;
+      const yearMatch=/Year/i.exec(mainText.slice(bodyStart,bodyStart+80));
+      if(yearMatch) bodyStart=bodyStart+yearMatch.index+yearMatch[0].length;
+      pfvBodies.push(mainText.slice(bodyStart,bodyEnd));
+    }
+  }
+  if(pfvBodies.length){
+    const tokens=pfvBodies.join(' ').replace(/,/g,'').split(/\s+/).filter(Boolean);
+    const isNum=x=>/^\d+$/.test(x);
+    let i=0, expectedYr=1;
+    const n=tokens.length;
+    while(i<n && expectedYr<=55){
+      if(!(isNum(tokens[i]) && parseInt(tokens[i])===expectedYr)){ i++; continue; }
+      const yr=expectedYr;
+      if(i+1>=n || !isNum(tokens[i+1])){ i++; continue; }
+      const attAge=parseInt(tokens[i+1]);
+      if(attAge<18 || attAge>100){ i++; continue; }
+      let j=i+2, premPaid=0;
+      if(yr<=payYears && isNum(tokens[j]) && parseInt(tokens[j])>1000 && parseInt(tokens[j])<1000000){ premPaid=parseInt(tokens[j]); j++; }
+      const take=w=>{ if(j+w>n) return null; const chunk=tokens.slice(j,j+w); return chunk.every(isNum)?chunk.map(Number):null; };
+      const nextLooksLikeYear=(pos,yrToMatch)=>pos<n && isNum(tokens[pos]) && parseInt(tokens[pos])===yrToMatch;
+      let chosen=null, width=null;
+      for(const w of [7,6]){
+        const cand=take(w);
+        if(cand && (expectedYr===55 || nextLooksLikeYear(j+w, expectedYr+1))){ chosen=cand; width=w; break; }
+      }
+      if(!chosen){ const c7=take(7); if(c7){chosen=c7;width=7;} else { const c6=take(6); if(c6){chosen=c6;width=6;} } }
+      if(!chosen){ i++; continue; }
+      let charges,pfv3,pfv6,pfv7,db3,db6,db7;
+      if(width===7){ [charges,pfv3,pfv6,pfv7,db3,db6,db7]=chosen; }
+      else{ charges=0; [pfv3,pfv6,pfv7,db3,db6,db7]=chosen; }
+      rows.push({yr,attAge,premPaid,charges,pfv3,pfv6,pfv7,db3,db6,db7});
+      j+=width; i=j; expectedYr++;
+    }
+  }
+
+  // ── Illustration of Rider Premiums table — End of Year | Attained Age |
+  // Premiums Paid | Total Rider Premiums | TDB | ADB (5 numbers per row).
+  const riderRows=[];
+  const riderSecMatch=/Illustration of Rider Premiums([\s\S]{0,3000}?)(?:\*TDB|Note|This is only)/i.exec(text);
+  if(riderSecMatch){
+    const body=riderSecMatch[1];
+    const tokens=body.replace(/,/g,'').split(/\s+/).filter(Boolean);
+    const isNum=x=>/^\d+$/.test(x);
+    let i=0, expectedYr=1;
+    const n=tokens.length;
+    while(i<n && expectedYr<=payYears+5){
+      if(!(isNum(tokens[i]) && parseInt(tokens[i])===expectedYr)){ i++; continue; }
+      const yr=expectedYr;
+      if(i+1>=n || !isNum(tokens[i+1])){ i++; continue; }
+      const attAge=parseInt(tokens[i+1]);
+      if(attAge<18 || attAge>100){ i++; continue; }
+      if(i+5>=n || !tokens.slice(i+2,i+6).every(isNum)){ i++; continue; }
+      const [premPaid,totalRider,rTdb,rAdb]=tokens.slice(i+2,i+6).map(Number);
+      riderRows.push({yr,attAge,premPaid,totalRider,tdb:rTdb,adb:rAdb});
+      i+=6; expectedYr++;
+    }
+  }
+
+  const preparedBy=get(/Prepared By\s*:\s*([A-Z][A-Z\s,C.]+?)(?:\s+Date|\s*\n)/i)||'—';
+  const propDate=get(/Date\s*:\s*(\d{1,2}\s+[A-Z][a-z]+\s+\d{4})/)||'—';
+  const branch=get(/Branch\s*:\s*([A-Z][A-Z\s]+?)(?=\s+This is only|\s*\n)/i)||'—';
+
+  return{name,age,ageNum,smoker,faceAmt,faceInt,regPremium,tdb,adbFace,adbPrem,
+         totalAnnualRegPremium,excessPremium,totalPremiumBilled,totalBilledInt,
+         payYears,coverageAge,fund,fundPct,fundDesc,rows,riderRows,
+         preparedBy,propDate,branch,filename};
+}
+
+// ══════════════════════════════════════
+//  MXPRIME RENDERER
+// ══════════════════════════════════════
+function renderMXPrimeView(id, d, pdfUrl){
+  const container=document.getElementById('proposalsContainer');
+  const div=document.createElement('div');
+  div.className='proposal-view'; div.id='view_'+id;
+  const fmt2=n=>{const r=Math.round(n*100)/100;const p=r.toFixed(2).split('.');p[0]=p[0].replace(/\B(?=(\d{3})+(?!\d))/g,',');return p.join('.');};
+  const fmtN2=n=>Math.round(n).toLocaleString('en-US');
+  const st=(icon,txt)=>'<div class="section-title">'+icon+' '+txt+'</div>';
+
+  const keyYrs=[1,2,3,4,5,10,15,20,25,30,35,40,45,50,(d.rows[d.rows.length-1]||{}).yr].filter((v,i,a)=>v!==undefined&&a.indexOf(v)===i);
+  const dispRows=(d.rows||[]).filter(r=>keyYrs.includes(r.yr));
+  let tRows='';
+  dispRows.forEach(r=>{
+    tRows+='<tr>'+
+      '<td class="age-col" style="text-align:center;">'+r.yr+' <span class="yr-tag">age '+r.attAge+'</span></td>'+
+      '<td style="text-align:right;">'+(r.premPaid?'₱'+fmtN2(r.premPaid):'—')+'</td>'+
+      '<td style="text-align:right;color:var(--muted);">'+fmtN2(r.charges)+'</td>'+
+      '<td style="text-align:right;color:#555;">'+fmtN2(r.pfv3)+'</td>'+
+      '<td style="text-align:right;color:var(--amber);">'+fmtN2(r.pfv6)+'</td>'+
+      '<td style="text-align:right;color:var(--green);font-weight:600;">'+fmtN2(r.pfv7)+'</td>'+
+      '<td style="text-align:right;color:#555;">'+fmtN2(r.db3)+'</td>'+
+      '<td style="text-align:right;color:var(--amber);">'+fmtN2(r.db6)+'</td>'+
+      '<td style="text-align:right;color:var(--green);font-weight:600;">'+fmtN2(r.db7)+'</td>'+
+      '</tr>';
+  });
+  const illusHTML=(d.rows&&d.rows.length)?(
+    '<div class="section">'+
+    st('📈','Policy Fund Value &amp; Death Benefit Illustration — '+d.fund)+
+    '<p style="font-size:12px;color:var(--muted);margin-bottom:8px;">Values shown are at end of policy year, based on your actual Regular Premium. Policy Fund Value and Death Benefit are not guaranteed and depend on actual fund performance.</p>'+
+    '<div class="illus-table-wrap"><table class="data-table" style="min-width:900px;"><thead><tr>'+
+      '<th style="text-align:center;" rowspan="2">End of Year /<br>Attained Age</th>'+
+      '<th style="text-align:center;" rowspan="2">Premiums<br>Paid</th>'+
+      '<th style="text-align:center;" rowspan="2">Charges**</th>'+
+      '<th style="text-align:center;" colspan="3">Policy Fund Value</th>'+
+      '<th style="text-align:center;" colspan="3">Death Benefit</th>'+
+    '</tr><tr>'+
+      '<th style="text-align:center;">@ 3%</th><th style="text-align:center;">@ 6%</th><th style="text-align:center;">@ 7%</th>'+
+      '<th style="text-align:center;">@ 3%</th><th style="text-align:center;">@ 6%</th><th style="text-align:center;">@ 7%</th>'+
+    '</tr></thead><tbody>'+tRows+'</tbody></table></div>'+
+    '<p style="font-size:11px;color:var(--muted);margin-top:10px;">**Insurance charges deducted monthly from the fund, based on 200% of Face Amount. Projected values are illustrative only, net of fund management charge (2.00% plus VAT), and not guaranteed.</p>'+
+    '</div>'
+  ):'';
+
+  let riderRows='';
+  (d.riderRows||[]).filter(r=>keyYrs.includes(r.yr)||r.yr<=d.payYears).forEach(r=>{
+    riderRows+='<tr>'+
+      '<td style="text-align:center;">'+r.yr+'</td>'+
+      '<td style="text-align:center;">'+r.attAge+'</td>'+
+      '<td style="text-align:right;">₱'+fmtN2(r.premPaid)+'</td>'+
+      '<td style="text-align:right;">₱'+fmtN2(r.totalRider)+'</td>'+
+      '<td style="text-align:right;">₱'+fmtN2(r.tdb)+'</td>'+
+      '<td style="text-align:right;">₱'+fmtN2(r.adb)+'</td>'+
+      '</tr>';
+  });
+  const riderHTML=(d.riderRows&&d.riderRows.length)?(
+    '<div class="section">'+st('🛟','Illustration of Rider Premiums')+
+    '<table class="data-table"><thead><tr><th style="text-align:center;">End of Year</th><th style="text-align:center;">Attained Age</th><th style="text-align:center;">Premiums Paid</th><th style="text-align:center;">Total Rider Premiums</th><th style="text-align:center;">TDB*</th><th style="text-align:center;">ADB^</th></tr></thead><tbody>'+riderRows+'</tbody></table>'+
+    '<p style="font-size:11px;color:var(--muted);margin-top:10px;">*TDB premium payment terminates at the earlier of attained age 60 and the premium paying period. ^ADB premium payment terminates at the earlier of attained age 70 and the premium paying period. Riders automatically terminate when the base plan is terminated.</p>'+
+    '</div>'
+  ):'';
+
+  div.innerHTML =
+    '<div class="doc-header"><div class="doc-header-inner"><div>'
+      +'<div class="doc-title">Sun MaxiLink Prime</div>'
+      +'<div class="doc-subtitle">Regular Premium Variable Life Insurance</div>'
+      +'<div class="product-type-tag">✨ VUL · Regular Pay</div>'
+    +'</div><div>'
+      +'<div class="doc-insured-name">'+d.name+'</div>'
+      +'<div class="doc-insured-meta">Age: '+d.age+' · '+d.smoker+'<br>Date: '+d.propDate+'<br>Branch: '+d.branch+'</div>'
+    +'</div></div>'
+    +'<div class="badge-strip"><span>'+d.payYears+'-Year Pay</span><span>Coverage to Age '+d.coverageAge+'</span><span>Face Amount: ₱'+fmt2(d.faceInt)+'</span><span>'+d.fund+'</span></div></div>'
+    +'<div class="save-btn-strip" style="display:flex;justify-content:flex-end;align-items:center;padding:10px 40px;background:var(--navy-light);border-bottom:1px solid var(--border);gap:10px;flex-wrap:wrap;">'
+      +'<span style="font-size:11px;color:var(--muted);font-weight:500;margin-right:auto;">📸 Export as HD JPG</span>'
+      +'<button class="view-pdf-btn" data-pid='+id+' style="display:inline-flex;align-items:center;gap:5px;background:var(--gold);color:var(--navy);border:none;cursor:pointer;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;letter-spacing:0.04em;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> VIEW PDF</button>'
+      +'<button class="save-jpg-btn" style="background:var(--navy-mid);color:#fff;" data-saveid="'+id+'" data-page="page1" data-product="mxprime"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Page 1 — Coverage</button>'
+      +'<button class="save-jpg-btn" data-saveid="'+id+'" data-page="page2" data-product="mxprime"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Page 2 — Illustration</button>'
+    +'</div>'
+    +'<div class="doc-body">'
+    +'<div class="notice"><span style="font-size:14px;flex-shrink:0;">⚠</span><span>This is an <strong>illustration only — not a contract of insurance</strong>. Fund values are not guaranteed and depend on actual investment performance.</span></div>'
+    +'<div class="section">'+st('💳','Premium at a Glance')
+      +'<div class="premium-grid">'
+        +'<div class="p-card hl"><div class="p-card-label">Total Annual Premium to be Billed</div><div class="p-card-value">₱'+fmt2(d.totalBilledInt)+'</div><div class="p-card-sub">Payable annually for '+d.payYears+' years</div></div>'
+        +'<div class="p-card"><div class="p-card-label">Face Amount</div><div class="p-card-value">₱'+fmt2(d.faceInt)+'</div><div class="p-card-sub">Guaranteed Death Benefit: 200% of Face Amount</div></div>'
+        +'<div class="p-card"><div class="p-card-label">Coverage Duration</div><div class="p-card-value">Until Age '+d.coverageAge+'</div><div class="p-card-sub">Regular pay VUL life coverage</div></div>'
+      +'</div>'
+      +'<table class="data-table" style="margin-top:14px;"><thead><tr><th>Component</th><th>Annual Amount</th></tr></thead><tbody>'
+        +'<tr><td><strong>Sun MaxiLink Prime</strong><br><span style="font-size:11px;color:var(--muted)">Basic Plan · '+d.payYears+'-Year Pay · '+d.smoker+'</span></td><td>₱'+d.regPremium+'</td></tr>'
+        +'<tr><td>Total Disability Benefit (TDB)</td><td>₱'+d.tdb+'</td></tr>'
+        +'<tr><td>Accidental Death Benefit (ADB)<br><span style="font-size:11px;color:var(--muted)">Face amount: ₱'+d.adbFace+'</span></td><td>₱'+d.adbPrem+'</td></tr>'
+        +'<tr><td>Total Annual Regular Premium</td><td>₱'+d.totalAnnualRegPremium+'</td></tr>'
+        +'<tr><td>Annual Excess Premium (billed regularly)</td><td>₱'+d.excessPremium+'</td></tr>'
+        +'<tr class="total-row"><td><strong>Total Annual Premium to be Billed</strong></td><td><strong>₱'+d.totalPremiumBilled+'</strong></td></tr>'
+      +'</tbody></table>'
+    +'</div>'
+    +'<div class="section">'+st('🛡️','Core Benefits')
+      +'<div class="benefits-grid">'
+        +'<div class="benefit-card navy-bar"><div class="b-label">Face Amount</div><div class="b-amount" style="font-size:20px;">₱'+fmt2(d.faceInt)+'</div><div class="b-desc">The value that forms part of the death benefit — guaranteed.</div></div>'
+        +'<div class="benefit-card green-bar"><div class="b-label">Guaranteed Death Benefit</div><div class="b-amount" style="font-size:20px;">₱'+fmt2(d.faceInt*2)+'</div><div class="b-desc">200% of the Face Amount — guaranteed regardless of fund performance.</div></div>'
+        +'<div class="benefit-card"><div class="b-label">Living Benefit (Fund Value)</div><div class="b-amount" style="font-size:20px;">Variable</div><div class="b-desc">Equal to the fund value, which is partially or fully withdrawable from the policy\'s share in the separate account(s).</div></div>'
+        +'<div class="benefit-card"><div class="b-label">Minimum Death Benefit</div><div class="b-amount" style="font-size:20px;">Variable</div><div class="b-desc">500% of the regular premium plus 125% of each paid excess premium, less 125% of each partial withdrawal, if any.</div></div>'
+        +'<div class="benefit-card"><div class="b-label">Premium Payment Period</div><div class="b-amount" style="font-size:20px;">'+d.payYears+' Years</div><div class="b-desc">Limited pay, front-end load — pay for '+d.payYears+' years, coverage continues to age '+d.coverageAge+'.</div></div>'
+        +'<div class="benefit-card"><div class="b-label">Loyalty Bonus (from Year 10)</div><div class="b-amount" style="font-size:20px;">2% avg</div><div class="b-desc">2% of average monthly fund balance of preceding 5 years, credited at the end of the 10th year and every 5 years thereafter. Non-guaranteed.</div></div>'
+      +'</div>'
+    +'</div>'
+    +'<div class="section">'+st('📊','Fund Allocation')
+      +'<div class="benefits-grid">'
+        +'<div class="benefit-card navy-bar" style="grid-column:span 2;">'
+          +'<div class="b-label">Chosen Fund</div>'
+          +'<div class="b-amount" style="font-size:22px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'+d.fund+
+            '<span style="background:var(--gold);color:var(--navy);font-size:13px;font-weight:700;letter-spacing:0.02em;padding:3px 12px;border-radius:999px;">'+d.fundPct+'% Allocation</span>'+
+          '</div>'
+          +'<div class="b-desc" style="margin-top:8px;">Peso-denominated<br><br>'
+            +'<em style="color:var(--navy-mid);">'+d.fundDesc+'</em><br><br>'
+            +'<strong style="color:var(--navy);">Valuation:</strong> Daily (NAVPU published weekly, sunlife.com.ph)<br>'
+            +'<a href="https://www.sunlife.com.ph/en/insurance/vul-fund-prices/" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;margin-top:10px;padding:8px 18px;background:#FFF3C4;color:var(--navy);font-weight:700;font-size:13px;letter-spacing:0.02em;text-decoration:none;border-radius:999px;border:2px solid var(--navy);">🔗 VUL FUND PRICES UPDATE</a>'
+          +'</div>'
+        +'</div>'
+      +'</div>'
+    +'</div>'
+    +riderHTML
+    +illusHTML
+    +'<div class="doc-footer"><p>Prepared by <strong>'+d.preparedBy+'</strong> · Branch: <strong>'+d.branch+'</strong> · Date: <strong>'+d.propDate+'</strong></p>'
+      +'<p style="margin-top:5px;">Sun Life of Canada (Philippines), Inc. · <strong>This is only an illustration — not a contract of insurance.</strong></p>'
+      +'<div style="display:flex;justify-content:center;margin-top:14px;"><div class="ip-stamp">© &nbsp;<strong>JCC Business Solutions. All Rights Reserved.</strong> &nbsp;·&nbsp; JAYMAR CASTRO, CPA</div></div>'
+    +'</div>'
+    +'</div>';
+
+  container.appendChild(div);
+}
+
 function updateMX1Premium(id){
   const view=document.getElementById('view_'+id);
   if(!view)return;
