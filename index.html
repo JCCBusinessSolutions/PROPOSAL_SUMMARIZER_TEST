@@ -3373,7 +3373,9 @@ function renderMX1View(id, d, pdfUrl){
             '<div class="b-desc" style="margin-top:8px;">Peso-denominated<br><br>'
               +'<em style="color:var(--navy-mid);">'+fc.fundDesc+'</em><br><br>'
               +'<strong style="color:var(--navy);">Valuation:</strong> Daily (NAVPU published weekly, sunlife.com.ph)<br>'
-              +'<a href="https://www.sunlife.com.ph/en/insurance/vul-fund-prices/" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;margin-top:10px;padding:8px 18px;background:#FFF3C4;color:var(--navy);font-weight:700;font-size:13px;letter-spacing:0.02em;text-decoration:none;border-radius:999px;border:2px solid var(--navy);">🔗 VUL FUND PRICES UPDATE</a>'
+              +(/Peso Global/i.test(fc.fund)
+                ?'<a href="https://www.slickcharts.com/nasdaq100" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:6px;margin-top:10px;background:#1565C0;color:#fff;text-decoration:none;padding:8px 18px;border-radius:999px;font-size:13px;font-weight:700;letter-spacing:0.02em;border:2px solid #1565C0;">📈 NASDAQ 100 — Live Performance</a>'
+                :'<a href="https://www.sunlife.com.ph/en/insurance/vul-fund-prices/" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;margin-top:10px;padding:8px 18px;background:#FFF3C4;color:var(--navy);font-weight:700;font-size:13px;letter-spacing:0.02em;text-decoration:none;border-radius:999px;border:2px solid var(--navy);">🔗 VUL FUND PRICES UPDATE</a>')
             +'</div>'
           +'</div>'
         ).join('')
@@ -3855,7 +3857,9 @@ function renderMXPrimeView(id, d, pdfUrl){
       +'<div class="b-desc" style="margin-top:8px;">Peso-denominated<br><br>'
         +'<em style="color:var(--navy-mid);">'+fc.fundDesc+'</em><br><br>'
         +'<strong style="color:var(--navy);">Valuation:</strong> Daily (NAVPU published weekly, sunlife.com.ph)<br>'
-        +'<a href="https://www.sunlife.com.ph/en/insurance/vul-fund-prices/" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;margin-top:10px;padding:8px 18px;background:#FFF3C4;color:var(--navy);font-weight:700;font-size:13px;letter-spacing:0.02em;text-decoration:none;border-radius:999px;border:2px solid var(--navy);">🔗 VUL FUND PRICES UPDATE</a>'
+        +(/Peso Global/i.test(fc.fund)
+          ?'<a href="https://www.slickcharts.com/nasdaq100" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:6px;margin-top:10px;background:#1565C0;color:#fff;text-decoration:none;padding:8px 18px;border-radius:999px;font-size:13px;font-weight:700;letter-spacing:0.02em;border:2px solid #1565C0;">📈 NASDAQ 100 — Live Performance</a>'
+          :'<a href="https://www.sunlife.com.ph/en/insurance/vul-fund-prices/" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;margin-top:10px;padding:8px 18px;background:#FFF3C4;color:var(--navy);font-weight:700;font-size:13px;letter-spacing:0.02em;text-decoration:none;border-radius:999px;border:2px solid var(--navy);">🔗 VUL FUND PRICES UPDATE</a>')
       +'</div>'
     +'</div>'
   ).join('');
