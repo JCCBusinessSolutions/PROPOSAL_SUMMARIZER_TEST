@@ -2298,6 +2298,7 @@ document.addEventListener('click', function(e) {
   const fmt    = n => Math.round(n).toLocaleString('en-US');
 
   const isEL5 = key && key.startsWith('el5-');
+  const isMXPrime = key && key.startsWith('mxprime-');
 
   let amount, period, note, breakdown, showNote;
   if (mode === 'annual') {
@@ -2316,6 +2317,13 @@ document.addEventListener('click', function(e) {
       note      = '';
       showNote  = false;
       breakdown = '<strong>Semi-Annual Mode</strong> &nbsp;·&nbsp; ₱' + fmt(semi) + ' per payment';
+    } else if (isMXPrime) {
+      const semi = annual / 2;
+      amount    = '₱' + fmt(semi);
+      period    = '/semi-annual';
+      note      = '';
+      showNote  = false;
+      breakdown = '<strong>Semi-Annual Mode</strong> &nbsp;·&nbsp; ₱' + fmt(semi) + ' per payment &nbsp;·&nbsp; No modal premium applied (equal split)';
     } else {
       const semi      = (annual / 2) * 1.05;
       const semiTotal = semi * 2;
@@ -2338,6 +2346,13 @@ document.addEventListener('click', function(e) {
       note      = '';
       showNote  = false;
       breakdown = '<strong>Quarterly Mode</strong> &nbsp;·&nbsp; ₱' + fmt(q) + ' per payment';
+    } else if (isMXPrime) {
+      const q = annual / 4;
+      amount    = '₱' + fmt(q);
+      period    = '/quarter';
+      note      = '';
+      showNote  = false;
+      breakdown = '<strong>Quarterly Mode</strong> &nbsp;·&nbsp; ₱' + fmt(q) + ' per payment &nbsp;·&nbsp; No modal premium applied (equal split)';
     } else {
       const q      = (annual / 4) * 1.10;
       const qTotal = q * 4;
@@ -2385,6 +2400,14 @@ document.addEventListener('click', function(e) {
           subEl.textContent = '2× per year · ₱' + fmt(annual) + ' annual total';
         } else {
           subEl.textContent = '3× per year · ₱' + fmt(annual) + ' annual total';
+        }
+      } else if (subEl && isMXPrime) {
+        if (mode === 'annual') {
+          subEl.textContent = 'per year · no modal premium (equal split)';
+        } else if (mode === 'semi') {
+          subEl.textContent = '2× per year · ₱' + fmt(annual) + ' annual total · no modal premium';
+        } else {
+          subEl.textContent = '4× per year · ₱' + fmt(annual) + ' annual total · no modal premium';
         }
       } else if (subEl && !isEL5) {
         if (mode === 'annual') {
@@ -3857,8 +3880,20 @@ function renderMXPrimeView(id, d, pdfUrl){
     +'<div class="doc-body">'
     +'<div class="notice"><span style="font-size:14px;flex-shrink:0;">⚠</span><span>This is an <strong>illustration only — not a contract of insurance</strong>. Fund values are not guaranteed and depend on actual investment performance.</span></div>'
     +'<div class="section">'+st('💳','Premium at a Glance')
+      +'<div class="payment-mode-wrap" data-key="mxprime-'+id+'" data-annual="'+d.totalBilledInt+'">'
+        +'<div class="payment-mode-label">💳 &nbsp;Select Payment Mode</div>'
+        +'<div class="payment-mode-tabs">'
+          +'<button class="pm-tab active" data-mode="annual">Annual</button>'
+          +'<button class="pm-tab semi" data-mode="semi">Semi-Annual</button>'
+          +'<button class="pm-tab quarterly" data-mode="quarterly">Quarterly</button>'
+        +'</div>'
+        +'<div class="pm-divider"></div>'
+        +'<div class="pm-amount-block"><span class="pm-main-amount" id="pm-main-mxprime-'+id+'">₱'+d.totalPremiumBilled+'</span><span class="pm-period" id="pm-period-mxprime-'+id+'">/year</span></div>'
+        +'<div class="pm-modal-tag" id="pm-note-mxprime-'+id+'" style="display:none;"></div>'
+        +'<div class="pm-breakdown" id="pm-break-mxprime-'+id+'"><strong>Annual Mode</strong> &nbsp;·&nbsp; ₱'+d.totalPremiumBilled+' per year &nbsp;·&nbsp; No modal premium applied</div>'
+      +'</div>'
       +'<div class="premium-grid">'
-        +'<div class="p-card hl"><div class="p-card-label">Total Annual Premium to be Billed</div><div class="p-card-value">₱'+fmt2(d.totalBilledInt)+'</div><div class="p-card-sub">Payable annually for '+d.payYears+' years</div></div>'
+        +'<div class="p-card hl"><div class="p-card-label">Total Annual Premium to be Billed</div><div class="p-card-value" id="pm-card-mxprime-'+id+'">₱'+fmt2(d.totalBilledInt)+'</div><div class="p-card-sub">Payable annually for '+d.payYears+' years</div></div>'
         +'<div class="p-card"><div class="p-card-label">Face Amount</div><div class="p-card-value">₱'+fmt2(d.faceInt)+'</div><div class="p-card-sub">Guaranteed Death Benefit: 200% of Face Amount</div></div>'
         +'<div class="p-card"><div class="p-card-label">Coverage Duration</div><div class="p-card-value">Until Age '+d.coverageAge+'</div><div class="p-card-sub">Regular pay VUL life coverage</div></div>'
       +'</div>'
@@ -3870,19 +3905,6 @@ function renderMXPrimeView(id, d, pdfUrl){
         +'<tr><td>Annual Excess Premium (billed regularly)</td><td>₱'+d.excessPremium+'</td></tr>'
         +'<tr class="total-row"><td><strong>Total Annual Premium to be Billed</strong></td><td><strong>₱'+d.totalPremiumBilled+'</strong></td></tr>'
       +'</tbody></table>'
-    +'</div>'
-    +'<div class="section">'+st('🗓️','Payment Mode')
-      +'<p style="font-size:12px;color:var(--muted);margin-bottom:12px;">Choose how you\'d like to pay. Each option simply divides the Total Annual Premium equally across the year — shown here for your convenience only, not a modal premium computation.</p>'
-      +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;" id="mxprime-mode-btns-'+id+'">'
-        +'<button type="button" class="mxprime-mode-btn active" data-mode="1" onclick="setMXPrimePaymentMode(\''+id+'\',1,this)" style="flex:1;min-width:120px;padding:10px 14px;border:2px solid var(--gold);border-radius:8px;background:var(--gold);color:var(--navy);font-weight:700;font-size:13px;cursor:pointer;">Annually</button>'
-        +'<button type="button" class="mxprime-mode-btn" data-mode="2" onclick="setMXPrimePaymentMode(\''+id+'\',2,this)" style="flex:1;min-width:120px;padding:10px 14px;border:2px solid var(--border);border-radius:8px;background:#fff;color:var(--navy);font-weight:700;font-size:13px;cursor:pointer;">Semi-Annual</button>'
-        +'<button type="button" class="mxprime-mode-btn" data-mode="4" onclick="setMXPrimePaymentMode(\''+id+'\',4,this)" style="flex:1;min-width:120px;padding:10px 14px;border:2px solid var(--border);border-radius:8px;background:#fff;color:var(--navy);font-weight:700;font-size:13px;cursor:pointer;">Quarterly</button>'
-      +'</div>'
-      +'<div class="benefit-card navy-bar">'
-        +'<div class="b-label" id="mxprime-mode-label-'+id+'">Amount per Payment — Annually</div>'
-        +'<div class="b-amount" id="mxprime-mode-amt-'+id+'" style="font-size:24px;" data-annual="'+d.totalBilledInt+'">₱'+fmt2(d.totalBilledInt)+'</div>'
-        +'<div class="b-desc" id="mxprime-mode-sub-'+id+'">1 payment per year × ₱'+fmt2(d.totalBilledInt)+' = ₱'+fmt2(d.totalBilledInt)+' per year</div>'
-      +'</div>'
     +'</div>'
     +'<div class="section">'+st('🛡️','Core Benefits')
       +'<div class="benefits-grid">'
@@ -3906,35 +3928,6 @@ function renderMXPrimeView(id, d, pdfUrl){
     +'</div>';
 
   container.appendChild(div);
-}
-
-// Payment Mode toggle for Prime — pure equal division of the Total Annual
-// Premium (annual/2 for semi-annual, annual/4 for quarterly). Deliberately
-// NOT a real modal premium computation (no per-mode loading factor applied),
-// per instruction — display convenience only.
-function setMXPrimePaymentMode(id, timesPerYear, btnEl){
-  const container=document.getElementById('mxprime-mode-btns-'+id);
-  if(container){
-    container.querySelectorAll('.mxprime-mode-btn').forEach(b=>{
-      b.classList.remove('active');
-      b.style.background='#fff'; b.style.color='var(--navy)'; b.style.borderColor='var(--border)';
-    });
-  }
-  if(btnEl){
-    btnEl.classList.add('active');
-    btnEl.style.background='var(--gold)'; btnEl.style.color='var(--navy)'; btnEl.style.borderColor='var(--gold)';
-  }
-  const amtEl=document.getElementById('mxprime-mode-amt-'+id);
-  const labelEl=document.getElementById('mxprime-mode-label-'+id);
-  const subEl=document.getElementById('mxprime-mode-sub-'+id);
-  if(!amtEl) return;
-  const fmt2=n=>{const r=Math.round(n*100)/100;const p=r.toFixed(2).split('.');p[0]=p[0].replace(/\B(?=(\d{3})+(?!\d))/g,',');return p.join('.');};
-  const annual=parseFloat(amtEl.getAttribute('data-annual'))||0;
-  const perPayment=annual/timesPerYear;
-  const modeLabel=timesPerYear===1?'Annually':timesPerYear===2?'Semi-Annual':'Quarterly';
-  amtEl.textContent='₱'+fmt2(perPayment);
-  if(labelEl) labelEl.textContent='Amount per Payment — '+modeLabel;
-  if(subEl) subEl.textContent=timesPerYear+' payment'+(timesPerYear>1?'s':'')+' per year × ₱'+fmt2(perPayment)+' = ₱'+fmt2(annual)+' per year';
 }
 
 function updateMX1Premium(id){
