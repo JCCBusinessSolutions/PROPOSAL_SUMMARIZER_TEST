@@ -947,6 +947,27 @@ document.getElementById('pdfInput').addEventListener('change',e=>{const files=[.
 
 async function processFiles(files){for(const f of files)await processOnePDF(f);}
 
+// Reconstruct real visual lines from PDF.js text items using their x/y glyph
+// position. PDF.js's raw item order follows content-stream draw order, NOT
+// visual reading order — joining items with a single space per page (the old
+// approach) collapses every table row on a page into one giant blob, which
+// breaks any parser that expects one row per line (age-column detection,
+// benefit-illustration tables, etc). This buckets items by y-coordinate into
+// rows, then sorts each row left-to-right by x-coordinate.
+function pdfPageTextLines(items){
+  const rows=[];
+  const TOL=2.5;
+  for(const it of items){
+    if(!it.str || !it.str.trim()) continue;
+    const x=it.transform[4], y=it.transform[5];
+    let row=rows.find(r=>Math.abs(r.y-y)<=TOL);
+    if(!row){row={y,cells:[]};rows.push(row);}
+    row.cells.push({x,str:it.str});
+  }
+  rows.sort((a,b)=>b.y-a.y);
+  return rows.map(r=>r.cells.sort((a,b)=>a.x-b.x).map(c=>c.str).join(' ').replace(/\s+/g,' ').trim()).filter(l=>l.length>0);
+}
+
 async function processOnePDF(file){
   showLoading('Reading PDF contents…');setProgress(10);
   try{
@@ -955,7 +976,7 @@ async function processOnePDF(file){
     const pdf=await pdfjsLib.getDocument({data:ab}).promise;
     setProgress(30);updateLoadingStep('Extracting text…');
     let fullText='';
-    for(let i=1;i<=pdf.numPages;i++){const p=await pdf.getPage(i);const c=await p.getTextContent();fullText+=c.items.map(x=>x.str).join(' ')+'\n';}
+    for(let i=1;i<=pdf.numPages;i++){const p=await pdf.getPage(i);const c=await p.getTextContent();fullText+=pdfPageTextLines(c.items).join('\n')+'\n';}
     setProgress(60);updateLoadingStep('Parsing proposal data…');
 
     // Stop here if this PDF clearly belongs to a different product than the
@@ -1302,7 +1323,8 @@ function parseSFW(text,filename){
   else if(hasADB||hasTDB)optionLabel='With Riders';
 
   // --- Benefit illustration rows ---
-  const rows=extractSFWRows(text);
+  const ageNumForRows=parseInt(age)||33;
+  const rows=extractSFWRows(text,payYears,ageNumForRows);
 
   return{name,age,face,totalPremium,basicPremium,hasCIB,hasHIB,hasADB,hasTDB,
          adbCovAmt:adbCovAmt||'0',cibCovAmt:cibCovAmt||'0',
@@ -1311,26 +1333,86 @@ function parseSFW(text,filename){
          smoker,gender,planClass,optionLabel,preparedBy,branch,propDate,rows,filename,
          payYears,variantLabel,variantShort,variantTag};
 }
-function extractSFWRows(text){
+// Parses the "Benefit Illustration / Accumulated Endowment Benefit" table —
+// the real SFW proposal table is ROW-MAJOR (age + every column's value on
+// one line, per row). Since blank cells leave no placeholder in extracted
+// text, we determine which columns are present on a given row from SFW's
+// own documented business rules (stated in every SFW proposal's Important
+// Illustration Notes / Dividend-SPUB Information pages):
+//   - Special Paid-Up Bonus is credited once, at the END of the pay period
+//     (policy year = payYears) → 'pub' column starts at age = ageNum+payYears
+//   - Dividends start the (payYears+1)th policy year → 'cashDiv'/'accumDiv'
+//     start at age = ageNum+payYears+1
+//   - Anticipated Endowment: 8 annual payments starting age 65
+//
+// IMPORTANT: Sun Life's proposal generator sometimes labels this table's
+// first column "Age" (literal attained age, e.g. 34,35,36…) and sometimes
+// "Dur" (policy duration/year number, e.g. 1,2,3…) for the exact same
+// product — confirmed by comparing real proposals. A row-major regex can't
+// tell which convention is in play from the header alone (the header text
+// itself gets scrambled across several visual lines), so instead we detect
+// it from the data: a real attained age is never below 18, but a Dur table
+// always starts at 1. Whichever convention we detect, every row label is
+// converted to an actual attained age before applying the presence rules.
+function extractSFWRows(text,payYears,ageNum){
   const structured={};
-  function pn(s){const m=s.match(/[\d,]+(?:\.\d+)?/g)||[];return m.map(n=>parseFloat(n.replace(/,/g,''))).filter(n=>!isNaN(n)&&n>0);}
   function ensure(age){if(!structured[age])structured[age]={};return structured[age];}
-  const lines=text.split('\n').map(l=>l.trim()).filter(l=>l.length>0);
-  const ageBlocks=[];let i=0;
-  while(i<lines.length){
-    const v=parseInt(lines[i]);
-    if(!isNaN(v)&&String(v)===lines[i]&&v>=18&&v<=100){
-      let run=0;
-      while(i+run<lines.length){const vv=parseInt(lines[i+run]);if(!isNaN(vv)&&String(vv)===lines[i+run]&&vv===v+run)run++;else break;}
-      if(run>=8){ageBlocks.push({start:i,baseAge:v,count:run});i+=run;continue;}
-    }
-    i++;
+  function pn(s){const m=(s||'').match(/[\d,]+(?:\.\d+)?/g)||[];return m.map(n=>parseFloat(n.replace(/,/g,'')));}
+
+  // Scope to the per-age illustration table only — skip the earlier sparse
+  // "Summary of Benefits" 2-scenario table. That table has its own similarly
+  // worded "Accumulation Rate at 4.50%" line (under "Scenario 1"), and its
+  // first column is "End of Year" (not Age/Dur), which would collide with
+  // the row-detection below if scope started there. Anchoring on "Benefit
+  // Illustration" — which only headers the detailed per-age table — avoids that.
+  const scopeMatch=text.match(/Benefit Illustration[\s\S]*?Accumulation Rate At 4\.50%([\s\S]*?)(?:Dividend\/Special Paid-up Bonus Information|$)/i);
+  const scope=scopeMatch?scopeMatch[1]:text;
+  const lines=scope.split('\n').map(l=>l.trim()).filter(l=>l.length>0);
+
+  const rowRx=/^(\d{1,3})\s+((?:[\d,]+(?:\.\d+)?\s*){2,9})$/;
+
+  // Pass 1: detect Age-vs-Dur convention from the smallest row label seen.
+  let minLabel=Infinity;
+  for(const line of lines){
+    const m=line.match(rowRx);
+    if(!m)continue;
+    const lbl=parseInt(m[1]);
+    if(!isNaN(lbl)&&lbl<minLabel)minLabel=lbl;
   }
-  if(ageBlocks.length===0)return structured;
-  const COL=[{key:'gcv',tests:['guaranteed cash value','cash value']},{key:'annualEndow',tests:['annual endowment','endowment benefit']},{key:'accumEndow',tests:['accumulated endowment','accum. endowment']},{key:'cashDiv',tests:['cash dividend','annual dividend','dividends']},{key:'accumDiv',tests:['accumulated dividend','accum. dividend']},{key:'pub',tests:['paid-up bonus','paid up bonus','special paid','accum. paid']},{key:'tlb',tests:['total living benefit','living benefit']},{key:'tdb',tests:['total death benefit','death benefit']}];
-  function detectKey(bs){const sf=Math.max(0,bs-100);for(let j=bs-1;j>=sf;j--){const lo=lines[j].toLowerCase();for(const c of COL)for(const t of c.tests)if(lo.includes(t))return c.key;}return null;}
-  function extractVals(bs,count){const vals=[];let j=bs+count,skip=0;while(j<lines.length&&skip<8){if(pn(lines[j]).length>0)break;skip++;j++;}let gaps=0;while(j<lines.length&&vals.length<count){const nums=pn(lines[j]);if(nums.length>0){vals.push(nums[0]);gaps=0;}else{gaps++;if(gaps>3&&vals.length>0)break;}j++;}return vals;}
-  for(const blk of ageBlocks){const ck=detectKey(blk.start);if(!ck||ck==='cumPrem')continue;const vals=extractVals(blk.start,blk.count);for(let k=0;k<vals.length&&k<blk.count;k++){const a=blk.baseAge+k;if(!ensure(a)[ck])ensure(a)[ck]=vals[k];}}
+  const durMode=minLabel<18; // real attained ages never start below 18
+
+  const divStart=ageNum+payYears+1;
+  const pubStart=ageNum+payYears;
+  const aeStart=65,aeEnd=72;
+
+  // Pass 2: parse rows, converting Dur→Age as needed.
+  for(const line of lines){
+    const m=line.match(rowRx);
+    if(!m)continue;
+    const label=parseInt(m[1]);
+    if(isNaN(label))continue;
+    const age=durMode?ageNum+label:label;
+    if(age<18||age>100)continue;
+    const nums=pn(m[2]);
+    if(nums.length<3)continue;
+
+    const hasGuarEndow=age>=aeStart&&age<=aeEnd;
+    const hasAccumEndow=age>=aeStart;
+    const hasDiv=age>=divStart;
+    const hasPub=age>=pubStart;
+    const expected=2+(hasGuarEndow?1:0)+(hasAccumEndow?1:0)+(hasDiv?2:0)+(hasPub?1:0)+2;
+    if(nums.length!==expected)continue; // don't guess on a mismatch — leave blank rather than misassign
+
+    let idx=1; // idx0 = cumulative premium paid, not needed by the UI
+    const r=ensure(age);
+    r.gcv=nums[idx++];
+    if(hasGuarEndow)r.annualEndow=nums[idx++];
+    if(hasAccumEndow)r.accumEndow=nums[idx++];
+    if(hasDiv){r.cashDiv=nums[idx++];r.accumDiv=nums[idx++];}
+    if(hasPub)r.pub=nums[idx++];
+    r.tlb=nums[idx++];
+    r.tdb=nums[idx++];
+  }
   return structured;
 }
 
@@ -1464,28 +1546,38 @@ function renderSFWView(id,d,pdfUrl){
     '<div class="section" style="background:linear-gradient(135deg,var(--navy-light) 0%,#fff 100%);border-radius:12px;padding:20px 24px;border:1px solid var(--border);">'+st('📐','Premium Variant Summary — FWA Comparison')+
     '<p style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.6;">All <strong>SUN Fit and Well Advantage</strong> variants share <strong>identical coverage benefits</strong>. The difference lies only in the premium payment period and the resulting annual premium cost. Longer payment periods mean lower annual premiums.</p>'+
     '<table class="data-table" style="min-width:460px;"><thead><tr><th>Variant</th><th>Pay Period</th><th>Annual Premium*</th><th>Factor vs FWA 10</th><th>Savings/yr vs FWA 10</th></tr></thead><tbody>'+
-    '<tr'+(payYears===10?' style="background:var(--amber-light);"':'')+'>'+
-      '<td><strong>SUN Fit and Well Advantage 10</strong>'+(payYears===10?' <span class="rider-tag" style="background:#0D2340;color:#fff;">YOUR PLAN</span>':' <span class="rider-tag">Base</span>')+'</td>'+
-      '<td style="text-align:center;">10 Years</td>'+
-      '<td style="text-align:right;font-weight:600;">₱33,310</td>'+
-      '<td style="text-align:center;font-weight:700;color:var(--navy);">1.0000</td>'+
-      '<td style="text-align:right;color:var(--muted);">—</td>'+
-    '</tr>'+
-    '<tr'+(payYears===15?' style="background:var(--amber-light);"':'')+'>'+
-      '<td><strong>SUN Fit and Well Advantage 15</strong>'+(payYears===15?' <span class="rider-tag" style="background:#0D2340;color:#fff;">YOUR PLAN</span>':'')+'</td>'+
-      '<td style="text-align:center;">15 Years</td>'+
-      '<td style="text-align:right;font-weight:600;">₱23,965</td>'+
-      '<td style="text-align:center;font-weight:700;color:var(--green);">0.7194</td>'+
-      '<td style="text-align:right;color:var(--green);font-weight:600;">–₱9,345/yr</td>'+
-    '</tr>'+
-    '<tr'+(payYears===20?' style="background:var(--amber-light);"':'')+'>'+
-      '<td><strong>SUN Fit and Well Advantage 20</strong>'+(payYears===20?' <span class="rider-tag" style="background:#0D2340;color:#fff;">YOUR PLAN</span>':'')+'</td>'+
-      '<td style="text-align:center;">20 Years</td>'+
-      '<td style="text-align:right;font-weight:600;">₱19,440</td>'+
-      '<td style="text-align:center;font-weight:700;color:var(--green);">0.5836</td>'+
-      '<td style="text-align:right;color:var(--green);font-weight:600;">–₱13,870/yr</td>'+
-    '</tr>'+
-    '</tbody><tfoot><tr><td colspan="5" style="font-size:11px;color:var(--muted);padding-top:8px;">*Based on 36M Non-Smoker, ₱500,000 Face Amount, with ADB + TDB riders.</td></tr></tfoot></table>'+
+    (function(){
+      // Dynamic: scales the actual uploaded proposal's real total premium
+      // (computedTotal) using the same ratio logic as the interactive variant
+      // switcher above — never hardcoded reference numbers.
+      const base10  = Math.round(SFW_VARIANT_REFPREM[10] * (computedTotal / SFW_VARIANT_REFPREM[payYears]));
+      const amt15   = Math.round(SFW_VARIANT_REFPREM[15] * (computedTotal / SFW_VARIANT_REFPREM[payYears]));
+      const amt20   = Math.round(SFW_VARIANT_REFPREM[20] * (computedTotal / SFW_VARIANT_REFPREM[payYears]));
+      let rows='';
+      rows+='<tr'+(payYears===10?' style="background:var(--amber-light);"':'')+'>'+
+        '<td><strong>SUN Fit and Well Advantage 10</strong>'+(payYears===10?' <span class="rider-tag" style="background:#0D2340;color:#fff;">YOUR PLAN</span>':' <span class="rider-tag">Base</span>')+'</td>'+
+        '<td style="text-align:center;">10 Years</td>'+
+        '<td style="text-align:right;font-weight:600;">₱'+fmtN(base10)+'</td>'+
+        '<td style="text-align:center;font-weight:700;color:var(--navy);">1.0000</td>'+
+        '<td style="text-align:right;color:var(--muted);">—</td>'+
+      '</tr>';
+      rows+='<tr'+(payYears===15?' style="background:var(--amber-light);"':'')+'>'+
+        '<td><strong>SUN Fit and Well Advantage 15</strong>'+(payYears===15?' <span class="rider-tag" style="background:#0D2340;color:#fff;">YOUR PLAN</span>':'')+'</td>'+
+        '<td style="text-align:center;">15 Years</td>'+
+        '<td style="text-align:right;font-weight:600;">₱'+fmtN(amt15)+'</td>'+
+        '<td style="text-align:center;font-weight:700;color:var(--green);">'+SFW_FACTORS[15].toFixed(4)+'</td>'+
+        '<td style="text-align:right;color:var(--green);font-weight:600;">–₱'+fmtN(base10-amt15)+'/yr</td>'+
+      '</tr>';
+      rows+='<tr'+(payYears===20?' style="background:var(--amber-light);"':'')+'>'+
+        '<td><strong>SUN Fit and Well Advantage 20</strong>'+(payYears===20?' <span class="rider-tag" style="background:#0D2340;color:#fff;">YOUR PLAN</span>':'')+'</td>'+
+        '<td style="text-align:center;">20 Years</td>'+
+        '<td style="text-align:right;font-weight:600;">₱'+fmtN(amt20)+'</td>'+
+        '<td style="text-align:center;font-weight:700;color:var(--green);">'+SFW_FACTORS[20].toFixed(4)+'</td>'+
+        '<td style="text-align:right;color:var(--green);font-weight:600;">–₱'+fmtN(base10-amt20)+'/yr</td>'+
+      '</tr>';
+      return rows;
+    })()+
+    '</tbody><tfoot><tr><td colspan="5" style="font-size:11px;color:var(--muted);padding-top:8px;">*Scaled from your uploaded proposal — '+d.age+' '+d.smoker+', ₱'+fD+' Face Amount, with ADB + TDB riders. Estimated for other pay periods using Sun Life\'s published FWA premium ratios; actual quotes may vary slightly by exact age/class.</td></tr></tfoot></table>'+
     '</div>'+
     '<div class="section">'+st('🌅','Retirement Cash Benefits — Ages 65 to 72')+
     '<p style="font-size:12px;color:var(--muted);margin-bottom:14px;">Guaranteed ₱'+fmt(faceInt*0.05)+'/year for <strong>8 consecutive years</strong>. Total: ₱'+fmt(faceInt*0.4)+'. <span style="color:var(--gold);font-weight:600;">✎ Click any cell to edit.</span></p>'+
@@ -2726,9 +2818,12 @@ function renderEL5View(id, d, pdfUrl){
             +'<div class="b-desc" style="margin-top:8px;">Peso-denominated<br><br>'
               +'<em style="color:var(--navy-mid);" id="el5-fund-desc-'+id+'-'+k+'">'+fc.fundDesc+'</em><br><br>'
               +'<strong style="color:var(--navy);">Valuation:</strong> Daily (NAVPU published weekly, sunlife.com.ph)<br>'
+              +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">'
+              +'<a href="https://www.sunlife.com.ph/en/insurance/vul-fund-prices/" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;padding:8px 18px;background:#FFF3C4;color:var(--navy);font-weight:700;font-size:13px;letter-spacing:0.02em;text-decoration:none;border-radius:999px;border:2px solid var(--navy);">🔗 VUL FUND PRICES UPDATE</a>'
               +(/Peso Global/i.test(fc.fund)
-                ?'<a href="https://www.slickcharts.com/nasdaq100" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:6px;margin-top:10px;background:var(--navy);color:var(--gold-light);text-decoration:none;padding:7px 14px;border-radius:7px;font-size:12px;font-weight:700;letter-spacing:0.04em;transition:background 0.2s;">📈 NASDAQ 100 — Live Performance</a>'
-                :'<a href="https://www.sunlife.com.ph/en/insurance/vul-fund-prices/" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;margin-top:10px;padding:8px 18px;background:#FFF3C4;color:var(--navy);font-weight:700;font-size:13px;letter-spacing:0.02em;text-decoration:none;border-radius:999px;border:2px solid var(--navy);">🔗 VUL FUND PRICES UPDATE</a>')
+                ?'<a href="https://www.slickcharts.com/nasdaq100" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:6px;background:#1565C0;color:#fff;text-decoration:none;padding:8px 18px;border-radius:999px;font-size:13px;font-weight:700;letter-spacing:0.02em;border:2px solid #1565C0;">📈 NASDAQ 100 — Live Performance</a>'
+                :'')
+              +'</div>'
             +'</div>'
           +'</div>'
         ).join('')
@@ -3373,9 +3468,12 @@ function renderMX1View(id, d, pdfUrl){
             '<div class="b-desc" style="margin-top:8px;">Peso-denominated<br><br>'
               +'<em style="color:var(--navy-mid);">'+fc.fundDesc+'</em><br><br>'
               +'<strong style="color:var(--navy);">Valuation:</strong> Daily (NAVPU published weekly, sunlife.com.ph)<br>'
+              +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">'
+              +'<a href="https://www.sunlife.com.ph/en/insurance/vul-fund-prices/" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;padding:8px 18px;background:#FFF3C4;color:var(--navy);font-weight:700;font-size:13px;letter-spacing:0.02em;text-decoration:none;border-radius:999px;border:2px solid var(--navy);">🔗 VUL FUND PRICES UPDATE</a>'
               +(/Peso Global/i.test(fc.fund)
-                ?'<a href="https://www.slickcharts.com/nasdaq100" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:6px;margin-top:10px;background:#1565C0;color:#fff;text-decoration:none;padding:8px 18px;border-radius:999px;font-size:13px;font-weight:700;letter-spacing:0.02em;border:2px solid #1565C0;">📈 NASDAQ 100 — Live Performance</a>'
-                :'<a href="https://www.sunlife.com.ph/en/insurance/vul-fund-prices/" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;margin-top:10px;padding:8px 18px;background:#FFF3C4;color:var(--navy);font-weight:700;font-size:13px;letter-spacing:0.02em;text-decoration:none;border-radius:999px;border:2px solid var(--navy);">🔗 VUL FUND PRICES UPDATE</a>')
+                ?'<a href="https://www.slickcharts.com/nasdaq100" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:6px;background:#1565C0;color:#fff;text-decoration:none;padding:8px 18px;border-radius:999px;font-size:13px;font-weight:700;letter-spacing:0.02em;border:2px solid #1565C0;">📈 NASDAQ 100 — Live Performance</a>'
+                :'')
+              +'</div>'
             +'</div>'
           +'</div>'
         ).join('')
@@ -3857,9 +3955,12 @@ function renderMXPrimeView(id, d, pdfUrl){
       +'<div class="b-desc" style="margin-top:8px;">Peso-denominated<br><br>'
         +'<em style="color:var(--navy-mid);">'+fc.fundDesc+'</em><br><br>'
         +'<strong style="color:var(--navy);">Valuation:</strong> Daily (NAVPU published weekly, sunlife.com.ph)<br>'
+        +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">'
+        +'<a href="https://www.sunlife.com.ph/en/insurance/vul-fund-prices/" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;padding:8px 18px;background:#FFF3C4;color:var(--navy);font-weight:700;font-size:13px;letter-spacing:0.02em;text-decoration:none;border-radius:999px;border:2px solid var(--navy);">🔗 VUL FUND PRICES UPDATE</a>'
         +(/Peso Global/i.test(fc.fund)
-          ?'<a href="https://www.slickcharts.com/nasdaq100" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:6px;margin-top:10px;background:#1565C0;color:#fff;text-decoration:none;padding:8px 18px;border-radius:999px;font-size:13px;font-weight:700;letter-spacing:0.02em;border:2px solid #1565C0;">📈 NASDAQ 100 — Live Performance</a>'
-          :'<a href="https://www.sunlife.com.ph/en/insurance/vul-fund-prices/" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;margin-top:10px;padding:8px 18px;background:#FFF3C4;color:var(--navy);font-weight:700;font-size:13px;letter-spacing:0.02em;text-decoration:none;border-radius:999px;border:2px solid var(--navy);">🔗 VUL FUND PRICES UPDATE</a>')
+          ?'<a href="https://www.slickcharts.com/nasdaq100" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:6px;background:#1565C0;color:#fff;text-decoration:none;padding:8px 18px;border-radius:999px;font-size:13px;font-weight:700;letter-spacing:0.02em;border:2px solid #1565C0;">📈 NASDAQ 100 — Live Performance</a>'
+          :'')
+        +'</div>'
       +'</div>'
     +'</div>'
   ).join('');
