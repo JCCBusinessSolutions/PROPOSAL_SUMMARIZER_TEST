@@ -1449,11 +1449,17 @@ function renderSFWView(id,d,pdfUrl){
     +(d.hasTDB?_p(d.tdbPrem):0)
     +(d.hasCIB?_p(d.cibPrem):0);
   const tD='₱'+fmtN(computedTotal);
-  const divAges=[];for(let a=ageNum+10;a<=ageNum+30;a++){const r=d.rows[a]||{};if(r.cashDiv&&r.cashDiv>0)divAges.push(r.cashDiv);}
+  // Average yearly dividend over the first 10 dividend-paying years, and the
+  // Loyalty Bonus (Special Paid-Up Bonus) credited at the END of the pay
+  // period. Both windows must follow payYears — they were previously hardcoded
+  // to the 10-pay schedule, which left the Loyalty Bonus card blank on any
+  // SFW15/SFW20 proposal because its PUB sits outside the scanned ages.
+  const divAges=[];
+  for(let a=ageNum+payYears+1;a<=ageNum+payYears+20;a++){const r=d.rows[a]||{};if(r.cashDiv&&r.cashDiv>0)divAges.push(r.cashDiv);}
   const divSample=divAges.slice(0,10);
   const avgDiv=divSample.length>0?Math.round(divSample.reduce((s,v)=>s+v,0)/divSample.length):null;
   let loyaltyBonus=null;
-  for(let a=ageNum+9;a<=ageNum+12;a++){const v=(d.rows[a]||{}).pub;if(v&&v>0){loyaltyBonus=v;break;}}
+  for(let a=ageNum+payYears;a<=ageNum+payYears+2;a++){const v=(d.rows[a]||{}).pub;if(v&&v>0){loyaltyBonus=Math.round(v/Math.pow(SFW_ACC_RATE,a-(ageNum+payYears)));break;}}
   // ── VARIANT FACTOR (relative to FWA 10 base) ──
   const varFactor=SFW_FACTORS[payYears]||1.0;
   const variantFactorLabel=payYears===10?'FWA 10 (Base — Factor: 1.0000)':payYears===15?'FWA 15 (Factor vs FWA 10: 0.7194)':'FWA 20 (Factor vs FWA 10: 0.5836)';
@@ -1521,8 +1527,8 @@ function renderSFWView(id,d,pdfUrl){
     '</tbody></table></div>'+
     '<div class="section">'+st('🛡️','Core Benefits')+
     '<div class="benefits-grid">'+bc('navy-bar','Life Insurance','₱'+fD,'Guaranteed death benefit until age 100.')+bc('','Major Critical Illness (64 conditions)','₱'+fD,'100% of Face Amount on any major CI diagnosis.')+bc('','Minor Critical Illness (34 conditions)','₱'+fmt(faceInt*0.2),'20% of Face per claim; up to 3 claims from different groups.')+bc('green-bar','Specific Cancer Booster (16 cancers)','₱'+fmt(faceInt*0.5),'Additional 50% on first cancer diagnosis.')+'<div class="benefit-card "><div class="b-label">Guaranteed Cash Benefit (from age 65)</div><div class="b-amount" style="font-size:28px;">₱'+fmt(faceInt*0.05)+' /year</div><div class="b-desc">5% of Face Amount for 8 years. Total: ₱'+fmt(faceInt*0.4)+'.</div></div>'+
-    '<div class="benefit-card gold-bar"><div class="b-label">Average Yearly Dividends</div><div class="b-amount-wrap"><span class="b-amount-prefix" style="font-size:28px;font-weight:700;">₱</span><input class="b-amount-input edit-cell" style="font-size:28px;font-weight:700;" value="'+(avgDiv?fmtN(avgDiv):'')+'" placeholder="enter amount"></div><div class="b-edit-hint">✎ Editable</div><div class="b-desc">From policy year '+(payYears+1)+' through age 100. Non-guaranteed at 4.50% p.a.</div></div>'+
-    '<div class="benefit-card gold-bar"><div class="b-label">Loyalty Bonus (Special Paid-Up Bonus)</div><div class="b-amount-wrap"><span class="b-amount-prefix" style="font-size:28px;font-weight:700;">₱</span><input class="b-amount-input edit-cell" style="font-size:28px;font-weight:700;" value="'+(loyaltyBonus?fmtN(loyaltyBonus):'')+'" placeholder="enter amount"></div><div class="b-edit-hint">✎ Editable</div><div class="b-desc">One-time bonus at end of Year '+payYears+'.</div></div>'+
+    '<div class="benefit-card gold-bar"><div class="b-label">Average Yearly Dividends</div><div class="b-amount-wrap"><span class="b-amount-prefix" style="font-size:28px;font-weight:700;">₱</span><input id="avgdiv-input-'+id+'" class="b-amount-input edit-cell" style="font-size:28px;font-weight:700;" value="'+(avgDiv?fmtN(avgDiv):'')+'" placeholder="enter amount"></div><div class="b-edit-hint">✎ Editable</div><div class="b-desc">From policy year <span id="avgdiv-yr-'+id+'">'+(payYears+1)+'</span> through age 100. Non-guaranteed at 4.50% p.a. <span id="avgdiv-est-'+id+'" style="display:none;color:var(--gold);font-weight:600;">· 📐 Estimated</span></div></div>'+
+    '<div class="benefit-card gold-bar"><div class="b-label">Loyalty Bonus (Special Paid-Up Bonus)</div><div class="b-amount-wrap"><span class="b-amount-prefix" style="font-size:28px;font-weight:700;">₱</span><input id="loyalty-input-'+id+'" class="b-amount-input edit-cell" style="font-size:28px;font-weight:700;" value="'+(loyaltyBonus?fmtN(loyaltyBonus):'')+'" placeholder="enter amount"></div><div class="b-edit-hint">✎ Editable</div><div class="b-desc">One-time bonus at end of Year <span id="loyalty-yr-'+id+'">'+payYears+'</span>. <span id="loyalty-est-'+id+'" style="display:none;color:var(--gold);font-weight:600;">· 📐 Estimated</span></div></div>'+
     '</div></div>'+
     '<div class="section">'+st('🩺','Critical Illness Coverage Scope')+
     '<div class="ci-grid"><div class="ci-box"><div class="ci-num">64</div><div class="ci-lbl">Major CI</div><div class="ci-sub">100% payout</div></div><div class="ci-box"><div class="ci-num">34</div><div class="ci-lbl">Minor CI</div><div class="ci-sub">20% payout each</div></div><div class="ci-box"><div class="ci-num">16</div><div class="ci-lbl">Cancer Conditions</div><div class="ci-sub">+50% booster</div></div></div></div>'+
@@ -1599,7 +1605,7 @@ function renderSFWView(id,d,pdfUrl){
   container.appendChild(div);
   // Register parsed data so the variant switcher can rebuild benefit tables
   window.sfwDataRegistry=window.sfwDataRegistry||{};
-  window.sfwDataRegistry[id]={rows:d.rows,ageNum:ageNum,payYears:payYears,faceInt:faceInt};
+  window.sfwDataRegistry[id]={rows:d.rows,ageNum:ageNum,payYears:payYears,faceInt:faceInt,baseAvgDiv:avgDiv,basePub:loyaltyBonus};
 }
 
 function buildSFWDivRows(rows,ageNum,payYears){
@@ -1772,6 +1778,11 @@ const SFW_VARIANT_YEARS    = {10:10, 15:15, 20:20};
 //   6. Total Living Benefit = GCV + AccumEndow + AccumDiv + PUB exactly.
 const SFW_PUB_END_FACTOR   = {10:1.0, 15:1.75367, 20:2.73648}; // PUB at end of pay, vs SFW10
 const SFW_FIRST_CD_FACTOR  = {10:1.0, 15:1.10391, 20:1.21157}; // 1st-div-year cash dividend, vs SFW10
+// Average cash dividend across the first 10 dividend-paying years. This is a
+// separate factor from FIRST_CD because each variant's 10-year window sits at
+// a different age range, so the average moves even though the dividend at any
+// given attained age is the same across variants.
+const SFW_AVG_DIV_FACTOR   = {10:1.0, 15:1.09796, 20:1.18235};
 // Guaranteed Cash Value at retirement ages barely moves between variants once
 // past the pay period — measured across the matched proposals it is only
 // ~0.017% apart (₱50 on a ₱500K face). Factor applied for correctness, but
@@ -2010,6 +2021,47 @@ document.addEventListener('click', function(e) {
     if (bannerRet) bannerRet.style.display = isUploaded ? 'none' : '';
     if (bannerRetName) bannerRetName.textContent = SFW_VARIANT_NAMES[targetVar];
     if (bannerRetName2) bannerRetName2.textContent = SFW_VARIANT_NAMES[targetVar];
+
+    // ── Core Benefits cards: Average Yearly Dividends + Loyalty Bonus (PUB) ──
+    // Prefer values read straight out of the rebuilt table (exact for the
+    // uploaded variant, estimator-derived otherwise); fall back to scaling the
+    // uploaded figure by the published cross-variant factor.
+    const tgtDivStart = dataReg.ageNum + targetVar + 1;
+    const tgtPubAge   = dataReg.ageNum + targetVar;
+    const fmtC = n => Math.round(n).toLocaleString('en-US');
+
+    const divVals = [];
+    for (let a = tgtDivStart; a < tgtDivStart + 10; a++) {
+      const cd = (useRows[a] || {}).cashDiv;
+      if (cd > 0) divVals.push(cd);
+    }
+    const avgEl = document.getElementById('avgdiv-input-'+vid);
+    if (avgEl) {
+      let avg = null;
+      if (divVals.length === 10) {
+        avg = divVals.reduce((s,v) => s+v, 0) / divVals.length;
+      } else if (dataReg.baseAvgDiv) {
+        avg = dataReg.baseAvgDiv * SFW_AVG_DIV_FACTOR[targetVar] / SFW_AVG_DIV_FACTOR[dataReg.payYears];
+      }
+      if (avg) avgEl.value = fmtC(avg);
+    }
+    const avgYrEl = document.getElementById('avgdiv-yr-'+vid);
+    if (avgYrEl) avgYrEl.textContent = (targetVar + 1);
+    const avgEstEl = document.getElementById('avgdiv-est-'+vid);
+    if (avgEstEl) avgEstEl.style.display = isUploaded ? 'none' : '';
+
+    const loyEl = document.getElementById('loyalty-input-'+vid);
+    if (loyEl) {
+      let pub = (useRows[tgtPubAge] || {}).pub;
+      if (!pub && dataReg.basePub) {
+        pub = dataReg.basePub * SFW_PUB_END_FACTOR[targetVar] / SFW_PUB_END_FACTOR[dataReg.payYears];
+      }
+      if (pub) loyEl.value = fmtC(pub);
+    }
+    const loyYrEl = document.getElementById('loyalty-yr-'+vid);
+    if (loyYrEl) loyYrEl.textContent = targetVar;
+    const loyEstEl = document.getElementById('loyalty-est-'+vid);
+    if (loyEstEl) loyEstEl.style.display = isUploaded ? 'none' : '';
   }
 });
 
