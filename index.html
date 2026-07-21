@@ -1022,11 +1022,11 @@ async function processOnePDF(file){
 // SLSI PARSER — Targeted per-rider regex extraction
 function parseSLSI(text,filename){
   const get=(p,fb='\u2014')=>{const m=text.match(p);return m?m[1].trim():fb;};
-  const insuredRaw=get(/On the Life of\s*:?\s*([A-Z][A-Z\s,()]+?)(?=Age Last Birthday|Currency|\n)/i,'Unknown');
+  const insuredRaw=get(/On the Life of\s*:?\s*([A-Z][A-Z\s,.()'\-]*?)\s*(?=Age Last Birthday|For the Decision|Currency|\n)/i,'Unknown');
   const insuredName=insuredRaw.replace(/\(CLIENT\)/i,'').trim();
   const age=get(/Age Last Birthday\s*:?\s*(\d+\s*\([^)]+\))/i);
   const ageNum=(function(){const n=parseInt(age);return isNaN(n)?4:n;})();
-  const ownerRaw=get(/For the Decision of\s*:?\s*([A-Z][A-Z\s,()]+?)(?=Age\s*\d|\(Age|\n)/i,'\u2014');
+  const ownerRaw=get(/For the Decision of\s*:?\s*([A-Z][A-Z\s,.()'\-]*?)\s*(?=Age\s*\d|\(Age|\n)/i,'\u2014');
   const owner=ownerRaw.replace(/\(CLIENT\)/i,'').trim();
   const ownerAge=get(/\(Age\s*(\d+)\)/i,'\u2014');
 
@@ -1253,7 +1253,7 @@ function parseSFW(text,filename){
   const get=(p,fb='\u2014')=>{const m=text.match(p);return m?m[1].trim():fb;};
 
   // --- Insured info ---
-  const nameRaw=get(/On the Life of\s*:?\s*([A-Z][A-Z\s,()]+?)(?=Age Last Birthday|Currency)/i,'Unknown');
+  const nameRaw=get(/On the Life of\s*:?\s*([A-Z][A-Z\s,.()'\-]*?)\s*(?=Age Last Birthday|For the Decision|Currency)/i,'Unknown');
   const name=nameRaw.replace(/\(CLIENT\)/i,'').trim();
   const age=get(/Age Last Birthday\s*:?\s*(\d+\s*\([^)]+\))/i);
   const smoker=/Non.Smoker/i.test(text)?'Non-Smoker':'Smoker';
@@ -2732,7 +2732,7 @@ document.addEventListener('click', function(e) {
 function parseEL5(text, filename){
   const get=(p,fb='—')=>{const m=text.match(p);return m?m[1].trim():fb;};
   const payPeriod=/EasyLink Protect 10|payable for 10 year/i.test(text)?10:5;
-  const nameRaw=get(/On the Life of\s*:\s*([A-Z][A-Z\s,()]+?)(?=Age Last Birthday|Currency|\n)/i,'Unknown');
+  const nameRaw=get(/On the Life of\s*:\s*([A-Z][A-Z\s,.()'\-]*?)\s*(?=Age Last Birthday|For the Decision|Currency|\n)/i,'Unknown');
   const name=nameRaw.replace(/\(CLIENT\)/i,'').trim();
   const age=get(/Age Last Birthday\s*:\s*(\d+\s*\([^)]+\))/i);
   const ageNum=(function(){const n=parseInt(age);return isNaN(n)?30:n;})();
@@ -3067,7 +3067,7 @@ function renderEL5View(id, d, pdfUrl){
 // ══════════════════════════════════════
 function parseMX1(text, filename){
   const get=(p,fb='—')=>{const m=text.match(p);return m?m[1].trim():fb;};
-  const nameRaw=get(/On the Life of\s*:\s*([A-Z][A-Z\s,()]+?)(?=Age Last Birthday|Currency|\n)/i,'Unknown');
+  const nameRaw=get(/On the Life of\s*:\s*([A-Z][A-Z\s,.()'\-]*?)\s*(?=Age Last Birthday|For the Decision|Currency|\n)/i,'Unknown');
   const name=nameRaw.replace(/\(CLIENT\)/i,'').trim();
   const age=get(/Age Last Birthday\s*:\s*(\d+\s*\([^)]+\))/i);
   const ageNum=(function(){const n=parseInt(age);return isNaN(n)?30:n;})();
@@ -3765,7 +3765,7 @@ function renderMX1View(id, d, pdfUrl){
 // ══════════════════════════════════════
 function parseMXPrime(text, filename){
   const get=(p,fb='—')=>{const m=text.match(p);return m?m[1].trim():fb;};
-  const nameRaw=get(/On the Life of\s*:\s*([A-Z][A-Z\s,()]+?)(?=Age Last Birthday|Currency|\n)/i,'Unknown');
+  const nameRaw=get(/On the Life of\s*:\s*([A-Z][A-Z\s,.()'\-]*?)\s*(?=Age Last Birthday|For the Decision|Currency|\n)/i,'Unknown');
   const name=nameRaw.replace(/\(CLIENT\)/i,'').trim();
   const age=get(/Age Last Birthday\s*:\s*(\d+\s*\([^)]+\))/i);
   const ageNum=(function(){const n=parseInt(age);return isNaN(n)?30:n;})();
