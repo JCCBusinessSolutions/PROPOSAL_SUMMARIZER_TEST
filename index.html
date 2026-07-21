@@ -1360,8 +1360,6 @@ function parseSFW(text,filename){
 // always starts at 1. Whichever convention we detect, every row label is
 // converted to an actual attained age before applying the presence rules.
 function extractSFWRows(text,payYears,ageNum){
-  const structured={};
-  function ensure(age){if(!structured[age])structured[age]={};return structured[age];}
   function pn(s){const m=(s||'').match(/[\d,]+(?:\.\d+)?/g)||[];return m.map(n=>parseFloat(n.replace(/,/g,'')));}
 
   // Scope to the per-age illustration table only — skip the earlier sparse
@@ -1376,48 +1374,54 @@ function extractSFWRows(text,payYears,ageNum){
 
   const rowRx=/^(\d{1,3})\s+((?:[\d,]+(?:\.\d+)?\s*){2,9})$/;
 
-  // Pass 1: detect Age-vs-Dur convention from the smallest row label seen.
-  let minLabel=Infinity;
-  for(const line of lines){
-    const m=line.match(rowRx);
-    if(!m)continue;
-    const lbl=parseInt(m[1]);
-    if(!isNaN(lbl)&&lbl<minLabel)minLabel=lbl;
-  }
-  const durMode=minLabel<18; // real attained ages never start below 18
-
+  const aeStart=65,aeEnd=72;
   const divStart=ageNum+payYears+1;
   const pubStart=ageNum+payYears;
-  const aeStart=65,aeEnd=72;
 
-  // Pass 2: parse rows, converting Dur→Age as needed.
-  for(const line of lines){
-    const m=line.match(rowRx);
-    if(!m)continue;
-    const label=parseInt(m[1]);
-    if(isNaN(label))continue;
-    const age=durMode?ageNum+label:label;
-    if(age<18||age>100)continue;
-    const nums=pn(m[2]);
-    if(nums.length<3)continue;
-
-    const hasGuarEndow=age>=aeStart&&age<=aeEnd;
-    const hasAccumEndow=age>=aeStart;
-    const hasDiv=age>=divStart;
-    const hasPub=age>=pubStart;
-    const expected=2+(hasGuarEndow?1:0)+(hasAccumEndow?1:0)+(hasDiv?2:0)+(hasPub?1:0)+2;
-    if(nums.length!==expected)continue; // don't guess on a mismatch — leave blank rather than misassign
-
-    let idx=1; // idx0 = cumulative premium paid, not needed by the UI
-    const r=ensure(age);
-    r.gcv=nums[idx++];
-    if(hasGuarEndow)r.annualEndow=nums[idx++];
-    if(hasAccumEndow)r.accumEndow=nums[idx++];
-    if(hasDiv){r.cashDiv=nums[idx++];r.accumDiv=nums[idx++];}
-    if(hasPub)r.pub=nums[idx++];
-    r.tlb=nums[idx++];
-    r.tdb=nums[idx++];
+  // Build the row set under a given interpretation of the first column.
+  // Each row's column layout is dictated by SFW's business rules, so a wrong
+  // interpretation makes the expected-vs-actual column count disagree on
+  // nearly every row. That makes "how many rows parsed" a reliable score.
+  function buildUnder(durMode){
+    const acc={};
+    for(const line of lines){
+      const m=line.match(rowRx);
+      if(!m)continue;
+      const label=parseInt(m[1]);
+      if(isNaN(label))continue;
+      const age=durMode?ageNum+label:label;
+      if(age<18||age>100)continue;
+      const nums=pn(m[2]);
+      if(nums.length<3)continue;
+      const hasGuarEndow=age>=aeStart&&age<=aeEnd;
+      const hasAccumEndow=age>=aeStart;
+      const hasDiv=age>=divStart;
+      const hasPub=age>=pubStart;
+      const expected=2+(hasGuarEndow?1:0)+(hasAccumEndow?1:0)+(hasDiv?2:0)+(hasPub?1:0)+2;
+      if(nums.length!==expected)continue; // don't guess — leave blank rather than misassign
+      let idx=1; // idx0 = cumulative premium paid, not needed by the UI
+      const r={};
+      r.gcv=nums[idx++];
+      if(hasGuarEndow)r.annualEndow=nums[idx++];
+      if(hasAccumEndow)r.accumEndow=nums[idx++];
+      if(hasDiv){r.cashDiv=nums[idx++];r.accumDiv=nums[idx++];}
+      if(hasPub)r.pub=nums[idx++];
+      r.tlb=nums[idx++];
+      r.tdb=nums[idx++];
+      acc[age]=r;
+    }
+    return acc;
   }
+
+  // Score both interpretations and keep the better one. This is far more
+  // robust than inspecting the smallest label: a "Dur" table whose printed
+  // rows happen to start at 19+ (or an "Age" table for an older client)
+  // would defeat any fixed threshold, but only the correct interpretation
+  // yields column counts that match SFW's rules across the whole table.
+  const asDur=buildUnder(true);
+  const asAge=buildUnder(false);
+  const nDur=Object.keys(asDur).length, nAge=Object.keys(asAge).length;
+  const structured=(nDur>nAge)?asDur:asAge;
   return structured;
 }
 
