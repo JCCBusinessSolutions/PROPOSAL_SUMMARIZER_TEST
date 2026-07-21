@@ -1550,7 +1550,7 @@ function renderSFWView(id,d,pdfUrl){
     '</div></div>'+
     '</div></div>'+
     '<div class="section">'+st('💰','Annual Cash Dividends — <span id="div-heading-'+id+'">Ages '+yr10Start+' to '+yr10End+'</span>')+
-    '<div id="est-banner-'+id+'" style="display:none;background:var(--gold-pale,#FBF3E4);border:1px solid var(--gold);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:11px;color:var(--navy);">📐 <strong>Estimated for <span id="est-banner-name-'+id+'"></span></strong> — derived from your uploaded '+variantShort+' proposal using Sun Life\'s 4.5% accumulation math and cross-variant factors. Validated within ±0.4% on sample proposals; actual quotes may vary slightly. Switch back to '+variantShort+' for exact uploaded values.</div>'+
+    '<div id="est-banner-'+id+'" style="display:none;background:var(--gold-pale,#FBF3E4);border:1px solid var(--gold);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:11px;color:var(--navy);">📐 <strong>Estimated for <span id="est-banner-name-'+id+'"></span></strong> — derived from your uploaded '+variantShort+' proposal using Sun Life\'s 4.5% accumulation math and cross-variant factors. <strong>For exact figures, generate and upload the actual <span id="est-banner-name2-'+id+'"></span> proposal.</strong> Switch back to '+variantShort+' for exact uploaded values.</div>'+
     '<p style="font-size:12px;color:var(--muted);margin-bottom:14px;">Dividends from <strong><span id="div-note-'+id+'">'+(payYears+1)+'</span>th policy year</strong>. <span style="color:var(--gold);font-weight:600;">✎ Click any cell to edit.</span></p>'+
     '<table class="data-table" style="text-align:center;"><thead><tr><th style="text-align:center;">Age</th><th style="text-align:center;">Cash Dividend</th><th style="text-align:center;">Accum. Dividend</th><th style="text-align:center;">Accum. Paid-Up Bonus</th></tr></thead><tbody id="div-tbody-'+id+'">'+buildSFWDivRows(d.rows,ageNum,payYears)+'</tbody></table></div>'+
     '<div class="section" style="background:linear-gradient(135deg,var(--navy-light) 0%,#fff 100%);border-radius:12px;padding:20px 24px;border:1px solid var(--border);">'+st('📐','Premium Variant Summary — FWA Comparison')+
@@ -1590,6 +1590,7 @@ function renderSFWView(id,d,pdfUrl){
     '</tbody><tfoot><tr><td colspan="5" style="font-size:11px;color:var(--muted);padding-top:8px;">*Scaled from your uploaded proposal — '+d.age+' '+d.smoker+', ₱'+fD+' Face Amount, with ADB + TDB riders. Estimated for other pay periods using Sun Life\'s published FWA premium ratios; actual quotes may vary slightly by exact age/class.</td></tr></tfoot></table>'+
     '</div>'+
     '<div class="section">'+st('🌅','Retirement Cash Benefits — Ages 65 to 72')+
+    '<div id="est-banner-ret-'+id+'" style="display:none;background:var(--gold-pale,#FBF3E4);border:1px solid var(--gold);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:11px;color:var(--navy);">📐 <strong>Estimated for <span id="est-banner-ret-name-'+id+'"></span></strong> — derived from your uploaded '+variantShort+' proposal using Sun Life\'s 4.5% accumulation math and cross-variant factors. Guaranteed Cash Value and Accumulated Endowment are near-identical across variants; Total Living Benefit shifts because dividends and Paid-Up Bonus differ. <strong>For exact figures, generate and upload the actual '+'<span id="est-banner-ret-name2-'+id+'"></span>'+' proposal.</strong> Switch back to '+variantShort+' for exact uploaded values.</div>'+
     '<p style="font-size:12px;color:var(--muted);margin-bottom:14px;">Guaranteed ₱'+fmt(faceInt*0.05)+'/year for <strong>8 consecutive years</strong>. Total: ₱'+fmt(faceInt*0.4)+'. <span style="color:var(--gold);font-weight:600;">✎ Click any cell to edit.</span></p>'+
     '<div style="overflow-x:auto;"><table class="data-table" style="min-width:560px;"><thead><tr><th style="text-align:left;">Age</th><th>Guar. Cash Value</th><th>Annual Endowment</th><th>Accum. Endowment</th><th>Total Living Benefit</th></tr></thead><tbody id="ret-tbody-'+id+'">'+buildSFWRetRows(d.rows,faceInt)+'</tbody></table></div></div>'+
     '<div class="section">'+st('📋','Important Notes')+'<ul class="notes-list"><li><span class="dot">1</span>This is <strong>'+d.optionLabel+'</strong>.</li><li><span class="dot">2</span>Dividends are <strong>not guaranteed</strong> and start from the '+(payYears+1)+'th policy year.</li><li><span class="dot">3</span>Special Paid-Up Bonus is earned during the '+payYears+'-year payment period'+(payYears!==10?' — Factor vs FWA 10: <strong>'+varFactor.toFixed(4)+'</strong>':'')+'.</li><li><span class="dot">4</span>Guaranteed Cash Benefits (₱'+fmt(faceInt*0.05)+'/year) begin at age 65 for 8 years.</li><li><span class="dot">5</span>Cooling-Off Period of 15 days (20 days for e-policy) applies.</li><li><span class="dot">6</span>Terminating early may result in a loss.'+(payYears!==10?' Premium is <strong>'+(Math.round((1-varFactor)*10000)/100)+'% lower</strong> than FWA 10 due to longer payment term.':'')+'</li></ul></div>'+
@@ -1612,13 +1613,19 @@ function buildSFWDivRows(rows,ageNum,payYears){
 }
 function buildSFWRetRows(rows,faceInt){
   const annE=faceInt*0.05;
+  // Accumulated Endowment is exact face-amount math (5% of face from 65,
+  // accruing at 4.5%) and identical across variants — so where a proposal's
+  // printed table skips a year, compute it rather than leaving a blank.
+  const aeCalc=(typeof sfwAccumEndow==='function'&&faceInt)?sfwAccumEndow(faceInt):null;
   function cV(v){return '<input class="edit-cell" value="'+(v&&v>0?fmtN(v):'')+'" placeholder="—">';}
   let html='',totalE=0;
-  for(let payout=1;payout<=8;payout++){const age=64+payout;const r=rows[age]||{};totalE+=annE;const last=payout===8;html+='<tr'+(last?' style="background:var(--tag-bg);"':'')+'>'+
+  for(let payout=1;payout<=8;payout++){const age=64+payout;const r=rows[age]||{};totalE+=annE;const last=payout===8;
+    const aeVal=r.accumEndow||(aeCalc?aeCalc[age]:null);
+    html+='<tr'+(last?' style="background:var(--tag-bg);"':'')+'>'+
     '<td class="age-col">'+age+' <span class="milestone-tag">Payout '+payout+'</span></td>'+
     '<td>'+cV(r.gcv)+'</td>'+
     '<td class="g-green" style="text-align:right;padding-right:8px;">'+fmtN(annE)+'</td>'+
-    '<td>'+cV(r.accumEndow)+'</td>'+
+    '<td>'+cV(aeVal)+'</td>'+
     '<td>'+cV(r.tlb)+'</td></tr>';}
   html+='<tr class="total-row"><td colspan="2"><strong>Total Guaranteed Endowment</strong></td><td class="g-green" style="text-align:right;padding-right:8px;"><strong>₱'+fmtN(totalE)+'</strong></td><td></td><td></td></tr>';
   return html;
@@ -1748,12 +1755,42 @@ const SFW_VARIANT_YEARS    = {10:10, 15:15, 20:20};
 //      per variant, then grows at exactly the 4.5% accumulation rate.
 //   5. Accum Dividend follows AD(a) = AD(a-1)×1.045 + CD(a) exactly.
 //   6. Total Living Benefit = GCV + AccumEndow + AccumDiv + PUB exactly.
-const SFW_PUB_END_FACTOR   = {10:1.0, 15:1.7875, 20:2.7365}; // PUB at end of pay, vs SFW10
-const SFW_FIRST_CD_FACTOR  = {10:1.0, 15:1.1252, 20:1.2116}; // 1st-div-year cash dividend, vs SFW10
+// Factors derived empirically from a FULLY MATCHED set of real proposals —
+// all three variants for the same profile (36, Male, Non-Smoker, ₱500K face,
+// Standard class), so no profile mismatch contaminates the ratios. An earlier
+// calibration took SFW15 from a 37yo/₱1M proposal and was ~1.9% off; matching
+// the profile removed that error.
+//
+// Key facts the model relies on (all verified against the real proposals):
+//   1. Guaranteed Cash Value at the SAME ATTAINED AGE is near-identical across
+//      variants once past the pay period (~0.017% apart).
+//   2. Accumulated Endowment schedule is identical (pure face-amount math).
+//   3. Cash Dividend at the same attained age is identical across variants.
+//   4. Special Paid-Up Bonus at END of pay period scales by a fixed factor
+//      per variant, then grows at exactly the 4.5% accumulation rate.
+//   5. Accum Dividend follows AD(a) = AD(a-1)×1.045 + CD(a) exactly.
+//   6. Total Living Benefit = GCV + AccumEndow + AccumDiv + PUB exactly.
+const SFW_PUB_END_FACTOR   = {10:1.0, 15:1.75367, 20:2.73648}; // PUB at end of pay, vs SFW10
+const SFW_FIRST_CD_FACTOR  = {10:1.0, 15:1.10391, 20:1.21157}; // 1st-div-year cash dividend, vs SFW10
+// Guaranteed Cash Value at retirement ages barely moves between variants once
+// past the pay period — measured across the matched proposals it is only
+// ~0.017% apart (₱50 on a ₱500K face). Factor applied for correctness, but
+// expect the displayed GCV to look essentially the same on every tab.
+const SFW_GCV_FACTOR       = {10:1.0, 15:1.000166, 20:1.000166};
 const SFW_ACC_RATE         = 1.045;   // Sun Life current accumulation rate (per proposal notes)
 const SFW_CD_EARLY_GROWTH  = 1.02;    // observed early-year cash-dividend growth (backfill only)
 
-function estimateSFWRows(srcRows, ageNum, srcPay, tgtPay){
+// Anticipated Endowment is pure face-amount math and is IDENTICAL across all
+// three variants: 5% of face paid each year from 65, accumulating at 4.5%.
+// Verified to the peso against the real proposals on all 8 rows, so we compute
+// it rather than copy — which also fills ages a sparse proposal never prints.
+function sfwAccumEndow(faceInt){
+  const ann=faceInt*0.05; const out={}; let acc=0;
+  for(let a=65;a<=72;a++){acc=(a===65)?ann:acc*SFW_ACC_RATE+ann;out[a]=Math.round(acc);}
+  return out;
+}
+
+function estimateSFWRows(srcRows, ageNum, srcPay, tgtPay, faceInt){
   const srcDivStart=ageNum+srcPay+1, tgtDivStart=ageNum+tgtPay+1;
   const srcPubEndAge=ageNum+srcPay, tgtPubEndAge=ageNum+tgtPay;
   const out={};
@@ -1789,15 +1826,20 @@ function estimateSFWRows(srcRows, ageNum, srcPay, tgtPay){
     if(tgtPubEnd)r.pub=Math.round(tgtPubEnd*Math.pow(SFW_ACC_RATE,a-tgtPubEndAge));
   }
 
-  // Retirement window: GCV + Accum Endowment identical across variants at
-  // same attained age (verified) → copy from source; recompute TLB.
+  // Retirement window: apply the per-variant GCV factor, and compute
+  // Accumulated Endowment from face amount (identical across variants, and
+  // computable exactly — so it fills ages a sparse proposal never prints).
+  const aeTable=faceInt?sfwAccumEndow(faceInt):null;
+  const gcvF=SFW_GCV_FACTOR[tgtPay]/SFW_GCV_FACTOR[srcPay];
   for(let a=65;a<=72;a++){
     const s=srcRows[a]||{};
-    if(!s.gcv&&!s.accumEndow)continue;
+    const haveAe=aeTable?aeTable[a]:s.accumEndow;
+    if(!s.gcv&&!haveAe)continue;
     const r=ensure(a);
-    if(s.gcv)r.gcv=s.gcv;
-    if(s.accumEndow)r.accumEndow=s.accumEndow;
+    if(s.gcv)r.gcv=Math.round(s.gcv*gcvF);
+    if(haveAe)r.accumEndow=haveAe;
     if(s.annualEndow)r.annualEndow=s.annualEndow;
+    else if(faceInt)r.annualEndow=Math.round(faceInt*0.05);
     if(r.gcv&&r.accumEndow&&r.accumDiv!=null&&r.pub!=null){
       r.tlb=Math.round(r.gcv+r.accumEndow+r.accumDiv+r.pub);
     }
@@ -1947,7 +1989,7 @@ document.addEventListener('click', function(e) {
   if (dataReg) {
     const isUploaded = targetVar === dataReg.payYears;
     const useRows = isUploaded ? dataReg.rows
-      : estimateSFWRows(dataReg.rows, dataReg.ageNum, dataReg.payYears, targetVar);
+      : estimateSFWRows(dataReg.rows, dataReg.ageNum, dataReg.payYears, targetVar, dataReg.faceInt);
     const divBody = document.getElementById('div-tbody-'+vid);
     if (divBody) divBody.innerHTML = buildSFWDivRows(useRows, dataReg.ageNum, targetVar);
     const retBody = document.getElementById('ret-tbody-'+vid);
@@ -1958,8 +2000,16 @@ document.addEventListener('click', function(e) {
     if (dn) dn.textContent = (targetVar+1);
     const banner = document.getElementById('est-banner-'+vid);
     const bannerName = document.getElementById('est-banner-name-'+vid);
+    const bannerName2 = document.getElementById('est-banner-name2-'+vid);
     if (banner) banner.style.display = isUploaded ? 'none' : '';
     if (bannerName) bannerName.textContent = SFW_VARIANT_NAMES[targetVar];
+    if (bannerName2) bannerName2.textContent = SFW_VARIANT_NAMES[targetVar];
+    const bannerRet = document.getElementById('est-banner-ret-'+vid);
+    const bannerRetName = document.getElementById('est-banner-ret-name-'+vid);
+    const bannerRetName2 = document.getElementById('est-banner-ret-name2-'+vid);
+    if (bannerRet) bannerRet.style.display = isUploaded ? 'none' : '';
+    if (bannerRetName) bannerRetName.textContent = SFW_VARIANT_NAMES[targetVar];
+    if (bannerRetName2) bannerRetName2.textContent = SFW_VARIANT_NAMES[targetVar];
   }
 });
 
