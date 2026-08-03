@@ -543,6 +543,10 @@ button{min-height:36px;}
       <div class="prod-tab-icon">🌏</div>
       <div class="prod-tab-name">Peso Maximizer<br><span style="font-weight:400;opacity:0.7;">ProIncome</span></div>
     </div>
+    <div class="prod-tab" id="tab_pl10" onclick="switchProduct('pl10')">
+      <div class="prod-tab-icon">🏛️</div>
+      <div class="prod-tab-name">Premier Legacy 10<br><span style="font-weight:400;opacity:0.7;">Whole Life</span></div>
+    </div>
   </div>
   <label class="upload-zone" id="uploadZone">
     <input type="file" id="pdfInput" accept="application/pdf" multiple>
@@ -913,8 +917,9 @@ function safeAge(v,fallback){const n=parseInt(v);return isNaN(n)?fallback:n;}
 // distinctive title text on page 1. Before parsing anything, check that text
 // against the currently selected tab so an EL5 PDF dropped on the SLSI tab
 // (etc.) gets a clear error instead of silently producing garbage data.
-const PRODUCT_LABELS={slsi:'Sun Life Secure Income (SLSI)',sfw:'SUN Fit and Well Advantage (SFW)',el5:'EasyLink Protect',mx1:'MaxiLink One',mxprime:'Sun MaxiLink Prime',spm:'Sun Peso Maximizer (ProIncome)'};
+const PRODUCT_LABELS={slsi:'Sun Life Secure Income (SLSI)',sfw:'SUN Fit and Well Advantage (SFW)',el5:'EasyLink Protect',mx1:'MaxiLink One',mxprime:'Sun MaxiLink Prime',spm:'Sun Peso Maximizer (ProIncome)',pl10:'Sun Life Premier Legacy 10'};
 const PRODUCT_MARKERS=[
+  {key:'pl10', rx:/Sun\s*Life\s*Premier\s*Legacy/i},  // check before generic "Sun Life Secure Income" family — distinctive whole-life product name
   {key:'spm', rx:/Sun\s*Peso\s*Maximizer/i},      // check most specific/distinctive titles first
   {key:'el5', rx:/EasyLink\s*Protect/i},
   {key:'mxprime', rx:/Sun\s*MaxiLink\s*Prime/i},  // check BEFORE mx1 — "MaxiLink Prime" would otherwise not match mx1's "One"-specific pattern, but check order matters if patterns ever overlap
@@ -936,8 +941,9 @@ function switchProduct(prod){
   document.getElementById('tab_mx1').classList.toggle('active',prod==='mx1');
   document.getElementById('tab_mxprime').classList.toggle('active',prod==='mxprime');
   document.getElementById('tab_spm').classList.toggle('active',prod==='spm');
-  document.getElementById('uploadLabel').textContent=prod==='slsi'?'Upload SLSI 5 / 10 / 15 PDF':prod==='sfw'?'Upload SFW Adv 10 / 15 / 20 PDF':prod==='el5'?'Upload EasyLink 5 / 10 PDF':prod==='mx1'?'Upload MaxiLink One PDF':prod==='mxprime'?'Upload MaxiLink Prime PDF':'Upload Sun Peso Maximizer PDF';
-  document.getElementById('proposalListLabel').textContent=prod==='slsi'?'SLSI 5 / 10 / 15 Proposals':prod==='sfw'?'SFW Proposals (Adv 10 / 15 / 20)':prod==='el5'?'EasyLink 5 / 10 Proposals':prod==='mx1'?'MaxiLink One Proposals':prod==='mxprime'?'MaxiLink Prime Proposals':'Sun Peso Maximizer Proposals';
+  document.getElementById('tab_pl10').classList.toggle('active',prod==='pl10');
+  document.getElementById('uploadLabel').textContent=prod==='slsi'?'Upload SLSI 5 / 10 / 15 PDF':prod==='sfw'?'Upload SFW Adv 10 / 15 / 20 PDF':prod==='el5'?'Upload EasyLink 5 / 10 PDF':prod==='mx1'?'Upload MaxiLink One PDF':prod==='mxprime'?'Upload MaxiLink Prime PDF':prod==='pl10'?'Upload Premier Legacy 10 PDF':'Upload Sun Peso Maximizer PDF';
+  document.getElementById('proposalListLabel').textContent=prod==='slsi'?'SLSI 5 / 10 / 15 Proposals':prod==='sfw'?'SFW Proposals (Adv 10 / 15 / 20)':prod==='el5'?'EasyLink 5 / 10 Proposals':prod==='mx1'?'MaxiLink One Proposals':prod==='mxprime'?'MaxiLink Prime Proposals':prod==='pl10'?'Premier Legacy 10 Proposals':'Sun Peso Maximizer Proposals';
   proposals.forEach(p=>{
     const item=document.getElementById('sidebar_'+p.id);
     const view=document.getElementById('view_'+p.id);
@@ -1007,6 +1013,7 @@ async function processOnePDF(file){
     else if(currentProduct==='mx1'){data=parseMX1(fullText,file.name);product='mx1';}
     else if(currentProduct==='mxprime'){data=parseMXPrime(fullText,file.name);product='mxprime';}
     else if(currentProduct==='spm'){data=parseSPM(fullText,file.name);product='spm';}
+    else if(currentProduct==='pl10'){data=parsePL10(fullText,file.name);product='pl10';}
     else{data=parseSFW(fullText,file.name);product='sfw';}
     setProgress(85);updateLoadingStep('Building summary…');
     const id='p_'+Date.now();
@@ -1025,6 +1032,7 @@ async function processOnePDF(file){
     else if(product==='mx1')renderMX1View(id,data,pdfUrl);
     else if(product==='mxprime')renderMXPrimeView(id,data,pdfUrl);
     else if(product==='spm')renderSPMView(id,data,pdfUrl);
+    else if(product==='pl10')renderPL10View(id,data,pdfUrl);
     else renderSFWView(id,data,pdfUrl);
     setProgress(100);
     setTimeout(()=>{hideLoading();setActiveProposal(id);},300);
@@ -1951,8 +1959,8 @@ function renderSidebarItem(id,data,product){
   const list=document.getElementById('proposalList');
   const item=document.createElement('div');item.className='proposal-item';item.id='sidebar_'+id;
   const name=product==='slsi'?data.insuredName:data.name;
-  const meta=product==='slsi'?('Age '+(safeAge(data.ageNum!==undefined?data.ageNum:data.age,'?'))+' · '+(data.slsiVariantShort||'SLSI 10')):product==='el5'?('Age '+(safeAge(data.age,'?'))+' · EasyLink '+data.payPeriod):product==='mx1'?('Age '+(safeAge(data.age,'?'))+' · Single Premium ₱'+data.singlePremium):product==='spm'?('Age '+(safeAge(data.age,'?'))+' · Single Premium ₱'+data.singlePremium):('Age '+(safeAge(data.age,'?'))+' · '+(data.variantShort||'SFW Adv 10')+' · Factor: '+(SFW_FACTORS[data.payYears||10]||1).toFixed(4));
-  const badge=product==='slsi'?(data.slsiVariantShort||'SLSI'):product==='el5'?('EL'+data.payPeriod):product==='mx1'?'MX1':product==='spm'?'SPM':'SFW';
+  const meta=product==='slsi'?('Age '+(safeAge(data.ageNum!==undefined?data.ageNum:data.age,'?'))+' · '+(data.slsiVariantShort||'SLSI 10')):product==='el5'?('Age '+(safeAge(data.age,'?'))+' · EasyLink '+data.payPeriod):product==='mx1'?('Age '+(safeAge(data.age,'?'))+' · Single Premium ₱'+data.singlePremium):product==='spm'?('Age '+(safeAge(data.age,'?'))+' · Single Premium ₱'+data.singlePremium):product==='pl10'?('Age '+(safeAge(data.age,'?'))+' · Total Annual Premium ₱'+data.totalPremium):('Age '+(safeAge(data.age,'?'))+' · '+(data.variantShort||'SFW Adv 10')+' · Factor: '+(SFW_FACTORS[data.payYears||10]||1).toFixed(4));
+  const badge=product==='slsi'?(data.slsiVariantShort||'SLSI'):product==='el5'?('EL'+data.payPeriod):product==='mx1'?'MX1':product==='spm'?'SPM':product==='pl10'?'PL10':'SFW';
   item.innerHTML='<div class="p-item-icon">📋</div><div class="p-item-info"><div class="p-item-name">'+name+' <span class="p-item-badge">'+badge+'</span></div><div class="p-item-meta">'+meta+'</div></div><button class="p-item-delete" onclick="deleteProposal(\''+id+'\',event)" title="Remove">✕</button>';
   item.onclick=()=>setActiveProposal(id);
   list.appendChild(item);
@@ -5386,6 +5394,150 @@ function updateSPMRate(id){
   view.setAttribute('data-payoutrate', newRate);
   const curSP=parseFloat(view.getAttribute('data-spint'))||0;
   recalcSPMPayouts(id, curSP, newRate);
+}
+// ══════════════════════════════════════════════════════════════════
+//  PL10 (Sun Life Premier Legacy 10 — Whole Life) PARSER
+// ══════════════════════════════════════════════════════════════════
+function parsePL10(text, filename){
+  const get=(p,fb='—')=>{const m=text.match(p);return m?m[1].trim():fb;};
+
+  const name=get(/On the Life of\s*:?\s*([A-Z][A-Z\s,.()'\-]*?)\s*\(CLIENT\)/i,'Unknown');
+  const genderRaw=get(/Age Last Birthday\s*:?\s*\d+\s*\(([A-Za-z]+)\)/i,'');
+  const gender=/f/i.test(genderRaw)?'Female':'Male';
+  const ageNum=parseInt(get(/Age Last Birthday\s*:?\s*(\d+)/i,'0'))||0;
+  const smoker=/Non-Smoker/i.test(text)?'Non-Smoker':(/Smoker/i.test(text)?'Smoker':'Non-Smoker');
+
+  // Face Amount + Annual Premium — anchor on "Guaranteed Premium Payment"
+  // (the basic-plan column header line) and take the next two Ps amounts,
+  // robust to however the plan-description parenthetical wraps across lines.
+  const faceRegPremMatch=text.match(/Guaranteed Premium Payment[\s\S]*?Ps\s*([\d,]+\.\d{2})\s*Ps\s*([\d,]+\.\d{2})/i);
+  const faceAmt=faceRegPremMatch?faceRegPremMatch[1]:(get(/Face Amount\s*:?\s*Ps\s*([\d,]+\.\d{2})/i)||'0.00');
+  const faceInt=parseFloat(faceAmt.replace(/,/g,''))||0;
+  const basicPremium=faceRegPremMatch?faceRegPremMatch[2]:'0.00';
+
+  const totalPremium=get(/Total Annual Premium\s*Ps\s*([\d,]+\.\d{2})/i,'0.00');
+  const totalPremiumInt=parseFloat(totalPremium.replace(/,/g,''))||0;
+
+  const payYears=parseInt(get(/(\d+)\s*Years?\s*Guaranteed Premium Payment/i,'10'))||10;
+  const coverageAge=get(/until age\s*(\d+)/i,'100');
+
+  // Riders — shared extractor picks up ADB, TDB (Waiver of Premium variant),
+  // and the FREE Living Benefit Rider automatically.
+  const {riders,flags:riderFlags}=extractRiders(text);
+
+  const gdbInt=faceInt*2; // Guaranteed Death Benefit — flat 200% of Face for this whole-life plan
+
+  // Dividend scenario rates
+  const rateHigh=get(/Current Dividend Scale[\s\S]{0,80}?Accumulation Rate at\s*([\d.]+)%/i,'4.50');
+  const rateLow=get(/Low Dividend Scale[\s\S]{0,80}?Accumulation Rate at\s*([\d.]+)%/i,'3.70');
+
+  // Living Benefit Rider terms
+  const lbrPct=get(/up to\s*(\d+)%\s*of\s*(?:the\s*)?basic Face Amount/i,'60');
+  const lbrCap=get(/shall not exceed\s*Ps\.?\s*([\d,.]+)\s*Million/i,'2');
+
+  // Detailed year-by-year Benefit Illustration (Current Dividend Scale) —
+  // spans 2 physical PDF pages with a repeated header; concatenate both
+  // fragments, then walk the age sequence (starts at the insured's current
+  // attained age, increments by 1 each row through age 100). The very first
+  // row omits the Guaranteed Cash Value figure (5 numbers instead of 6),
+  // since cash value hasn't accrued yet in year 1.
+  const illusFrags=[...text.matchAll(/Benefit Illustration[\s\S]{0,120}?Accumulation Rate At\s*[\d.]+%([\s\S]*?)(?=Total Living Benefit is the sum|Dividend Information|$)/gi)];
+  const illusText=illusFrags.map(m=>m[1]).join('\n');
+  const rows=[];
+  if(illusText){
+    const tokens=illusText.replace(/,/g,'').split(/\s+/).filter(Boolean);
+    const isNum=x=>/^\d+$/.test(x);
+    // The table's first "Attained Age" is the age at the first policy
+    // anniversary — typically current age + 1, not the proposal's "Age Last
+    // Birthday" figure — so read the actual starting age straight off the
+    // table (the first numeric token right after the text header) instead
+    // of assuming it equals ageNum.
+    let i=0;
+    while(i<tokens.length && !isNum(tokens[i])) i++;
+    let expectedAge=i<tokens.length?parseInt(tokens[i]):0;
+    const startAge=expectedAge;
+    const n=tokens.length;
+    while(i<n && expectedAge<=100){
+      if(isNum(tokens[i]) && parseInt(tokens[i])===expectedAge){
+        const need=(expectedAge===startAge)?5:6;
+        if(i+1+need<=n && tokens.slice(i+1,i+1+need).every(isNum)){
+          const vals=tokens.slice(i+1,i+1+need).map(Number);
+          let cumPrem,cashVal,cashDiv,accumDiv,livingBen,deathBen;
+          if(need===5){ [cumPrem,cashDiv,accumDiv,livingBen,deathBen]=vals; cashVal=0; }
+          else{ [cumPrem,cashVal,cashDiv,accumDiv,livingBen,deathBen]=vals; }
+          rows.push({age:expectedAge,cumPrem,cashVal,cashDiv,accumDiv,livingBen,deathBen});
+          i+=1+need; expectedAge++;
+          continue;
+        }
+      }
+      i++;
+    }
+  }
+
+  const preparedBy=get(/Prepared By\s*:\s*([A-Z][A-Z\s,C.]+?)(?:\s+Date|\s*\n)/i)||'—';
+  const propDate=get(/Date\s*:\s*(\d{1,2}\s+[A-Z][a-z]+\s+\d{4})/)||'—';
+  const branch=get(/Branch\s*:\s*([A-Z][A-Z\s]+?)(?=\s+Attachment|\s+This is only|\s*\n)/i)||'—';
+
+  return{name,age:ageNum+' ('+gender+')',ageNum,gender,smoker,faceAmt,faceInt,basicPremium,
+         totalPremium,totalPremiumInt,payYears,coverageAge,riders,riderFlags,gdbInt,
+         rateHigh,rateLow,lbrPct,lbrCap,rows,preparedBy,propDate,branch,filename};
+}
+
+function renderPL10View(id,d,pdfUrl){
+  const container=document.getElementById('proposalsContainer');
+  const st=(icon,txt)=>'<div class="section-title">'+icon+' '+txt+'</div>';
+  const fmtN2=n=>Math.round(n).toLocaleString('en-US');
+
+  const keyRows=(d.rows||[]).filter(r=>{
+    const yearsIn=r.age-d.ageNum+1;
+    return [1,3,5,10,15,20,25,30].includes(yearsIn) || r.age===100;
+  });
+  let illusRowsHTML='';
+  keyRows.forEach(r=>{
+    illusRowsHTML+='<tr>'+
+      '<td style="text-align:center;">'+r.age+'</td>'+
+      '<td style="text-align:right;">₱'+fmtN2(r.cumPrem)+'</td>'+
+      '<td style="text-align:right;">₱'+fmtN2(r.cashVal)+'</td>'+
+      '<td style="text-align:right;">₱'+fmtN2(r.accumDiv)+'</td>'+
+      '<td style="text-align:right;">₱'+fmtN2(r.livingBen)+'</td>'+
+      '<td style="text-align:right;">₱'+fmtN2(r.deathBen)+'</td>'+
+      '</tr>';
+  });
+  const illusHTML=(d.rows&&d.rows.length)?(
+    '<div class="section">'+st('📊','Living & Death Benefit Illustration — Key Years (Current Dividend Scale @ '+d.rateHigh+'%)')+
+    '<table class="data-table"><thead><tr><th style="text-align:center;">Attained Age</th><th style="text-align:center;">Cumulative Premiums Paid</th><th style="text-align:center;">Guaranteed Cash Value</th><th style="text-align:center;">Illustrative Accum. Dividend</th><th style="text-align:center;">Total Living Benefit</th><th style="text-align:center;">Total Death Benefit</th></tr></thead><tbody>'+illusRowsHTML+'</tbody></table>'+
+    '<p style="font-size:11px;color:var(--muted);margin-top:10px;">Total Living Benefit = Guaranteed Cash Value + Illustrative Accumulated Dividend. Total Death Benefit = Guaranteed Death Benefit (₱'+fmtN2(d.gdbInt)+', flat) + Illustrative Accumulated Dividend. Dividends are non-guaranteed. A low-dividend scenario at '+d.rateLow+'% is also disclosed in the full proposal.</p>'+
+    '</div>'
+  ):'';
+
+  const div=document.createElement('div');
+  div.className='proposal-view'; div.id='view_'+id;
+  div.innerHTML=
+    '<div class="doc-header">'
+    +'<div class="doc-title-wrap"><div class="doc-title">Sun Life Premier Legacy 10</div><div class="doc-sub">'+d.name+' · '+d.age+' · '+d.smoker+'</div></div>'
+    +'<div class="doc-actions"><button class="btn-pdf" onclick="window.open(\''+pdfUrl+'\',\'_blank\')">📄 View PDF</button><button class="btn-jpg" data-save-jpg="'+id+'">💾 Save JPG</button></div>'
+    +'</div>'
+    +'<div class="doc-body" id="docbody_'+id+'">'
+    +'<div class="section">'+st('💳','Premium at a Glance')
+      +'<div class="premium-grid"><div class="p-card hl"><div class="p-card-label">Total Annual Premium</div><div class="p-card-value">₱'+d.totalPremium+'</div><div class="p-card-sub">Pay for '+d.payYears+' years only</div></div><div class="p-card"><div class="p-card-label">Face Amount</div><div class="p-card-value">₱'+fmtN2(d.faceInt)+'</div><div class="p-card-sub">Guaranteed Death Benefit: 200% of Face Amount</div></div><div class="p-card"><div class="p-card-label">Coverage Duration</div><div class="p-card-value">Until '+d.coverageAge+'</div><div class="p-card-sub">Whole life protection</div></div></div>'
+      +'<table class="data-table"><thead><tr><th>Component</th><th>Annual Premium</th></tr></thead><tbody>'
+      +'<tr><td><strong>Sun Life Premier Legacy 10</strong><br><span style="font-size:11px;color:var(--muted)">Basic Plan · '+d.payYears+'-Year Pay · '+d.smoker+'</span></td><td>₱'+d.basicPremium+'</td></tr>'
+      +renderRiderRows(d.riders||[],'pl10',id)
+      +'<tr class="total-row"><td><strong>Total Annual Premium</strong></td><td><strong>₱'+d.totalPremium+'</strong></td></tr>'
+      +'</tbody></table></div>'
+    +'<div class="section">'+st('🛡️','Core Benefits')
+      +'<div class="benefits-grid">'
+      +'<div class="benefit-card navy-bar"><div class="b-label">Guaranteed Death Benefit</div><div class="b-amount" style="font-size:20px;">₱'+fmtN2(d.gdbInt)+'</div><div class="b-desc">200% of the Face Amount — guaranteed from Day 1 of coverage until age '+d.coverageAge+', regardless of dividend performance.</div></div>'
+      +'<div class="benefit-card green-bar"><div class="b-label">Living Benefit Rider (LBR)</div><div class="b-amount" style="font-size:20px;">Up to '+d.lbrPct+'% of Face</div><div class="b-desc">Advance payment if diagnosed terminally ill (≤12 months life expectancy). FREE built-in rider. Aggregate cap across all Sun Life policies: ₱'+d.lbrCap+' Million.</div></div>'
+      +'<div class="benefit-card"><div class="b-label">Mental Incapacity Benefit</div><div class="b-amount" style="font-size:20px;">Cash Value Access</div><div class="b-desc">A designated recipient may access the plan\'s cash value of dividend credits (or guaranteed value + dividend credits) if the policy owner is diagnosed with mental incapacity, coma, or major head trauma.</div></div>'
+      +renderCoreBenefitRiderCards(d.riders||[], d.payYears)
+      +'</div></div>'
+    +illusHTML
+    +'<div class="section">'+st('💰','Dividend Information')
+      +'<p style="font-size:12px;color:var(--muted);line-height:1.6;">This plan is participating — it may earn non-guaranteed annual dividends based on Sun Life Philippines\' surplus, which the owner can take in cash, use to reduce premium, leave to accumulate at interest, or use to buy paid-up additions. Two dividend scenarios are illustrated in the full proposal: a Current Dividend Scale at '+d.rateHigh+'% accumulation, and a Low Dividend Scale at '+d.rateLow+'% (80 basis points lower). Dividends are never guaranteed and may be zero in a given year.</p></div>'
+    +'<div class="doc-footer"><p>Prepared by <strong>'+d.preparedBy+'</strong> · Branch: <strong>'+d.branch+'</strong> · Date: <strong>'+d.propDate+'</strong></p><p style="margin-top:5px;">Sun Life of Canada (Philippines), Inc. · <strong>Not a contract of insurance.</strong></p><div style="display:flex;justify-content:center;margin-top:14px;"><div class="ip-stamp">© &nbsp;<strong>JCC Business Solutions. All Rights Reserved.</strong></div></div></div>'
+    +'</div>';
+  container.appendChild(div);
 }
 
 </script>
