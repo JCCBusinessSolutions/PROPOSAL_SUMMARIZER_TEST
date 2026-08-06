@@ -1349,6 +1349,15 @@ const SLSI_FACTOR_BASIC = {5:2.7198, 10:1.3880, 15:1.0000};
 const SLSI_FACTOR_ADB   = {5:3.1111, 10:1.9697, 15:1.0000};
 const SLSI_FACTOR_WPD   = {5:1.7614, 10:1.1388, 15:1.0000};
 const SLSI_FACTOR_TOTAL = {5:2.6792, 10:1.3831, 15:1.0000};
+// Premier Legacy (PL5/PL10) cross-variant reference — exact figures from two
+// real proposals for the same insured (age 54, Male, Non-Smoker, Face 25M),
+// one on each pay period. Used the same way SLSI_REF is: scale these
+// reference component amounts by (uploaded total ÷ reference total for the
+// uploaded variant) to estimate the other variant's premium.
+const PL_REF = {
+  5:  {basic:5326000.00, adb:51750.00, tdb:129066.00, total:5506816.00},
+  10: {basic:2750500.00, adb:29250.00, tdb:96735.30,  total:2876485.30}
+};
 const SLSI_VARIANT_NAMES= {5:'SLSI 5', 10:'SLSI 10', 15:'SLSI 15'};
 const SLSI_VARIANT_YEARS= {5:5, 10:10, 15:15};
 
@@ -2594,7 +2603,83 @@ document.addEventListener('click', function(e) {
   }
 });
 
-// ── EL5 ILLUSTRATION BUILDER — shared by renderer + variant switcher ──
+// ── PL5/PL10 VARIANT SWITCHER — scales premium components using the
+// PL_REF table derived from two real proposals (same insured, both pay
+// periods). Simpler than SLSI's: only the premium figures update, since
+// this product's illustration table is a single continuous age-indexed
+// series rather than per-variant reference rows, so it isn't rebuilt here —
+// the disclaimer note makes clear the illustration reflects the uploaded
+// variant only. ──
+const plVariantRegistry = {};
+document.addEventListener('click', function(e) {
+  const btn = e.target.closest('[data-pl-var]');
+  if (!btn) return;
+
+  const vid         = btn.dataset.plVid;
+  const targetVar    = parseInt(btn.dataset.plVar);
+  const uploadedVar  = parseInt(btn.dataset.plUploaded);
+  const uploadedTot  = parseFloat(btn.dataset.plBase);
+  if (!PL_REF[uploadedVar] || !PL_REF[targetVar]) return; // uploaded pay period isn't 5 or 10 — nothing to scale from
+
+  if (!plVariantRegistry[vid]) plVariantRegistry[vid] = { uploadedTot, uploadedVar };
+  const reg = plVariantRegistry[vid];
+  const ratio = reg.uploadedTot / PL_REF[reg.uploadedVar].total;
+  const fmtV = n => Math.round(n).toLocaleString('en-US');
+  const fmt2 = n => n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+  const newBasic = PL_REF[targetVar].basic*ratio;
+  const newADB   = PL_REF[targetVar].adb*ratio;
+  const newTDB   = PL_REF[targetVar].tdb*ratio;
+  const newTotal = PL_REF[targetVar].total*ratio;
+  const isUploaded = targetVar === reg.uploadedVar;
+
+  const sw = document.getElementById('pl-var-sw-'+vid);
+  if (sw) sw.querySelectorAll('.var-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+
+  [5,10].forEach(v => {
+    const el = document.getElementById('pl-amt'+v+'-'+vid);
+    if (el) el.textContent = '₱'+fmtV(PL_REF[v].total*ratio);
+  });
+
+  const savBar = document.getElementById('pl-savings-'+vid);
+  const svAmt  = document.getElementById('pl-sv-amt-'+vid);
+  if (savBar) {
+    if (targetVar === 10) savBar.classList.remove('show');
+    else { savBar.classList.add('show'); if (svAmt) svAmt.textContent = '₱'+fmtV((PL_REF[5].total-PL_REF[10].total)*ratio)+'/yr'; }
+  }
+
+  const totalCard = document.getElementById('pl-total-card-'+vid);
+  const totalSub  = document.getElementById('pl-total-sub-'+vid);
+  const totalPrem = document.getElementById('pl-total-prem-'+vid);
+  const basicPrem = document.getElementById('pl-basic-prem-'+vid);
+  const basicName = document.getElementById('pl-basic-name-'+vid);
+  const basicMeta = document.getElementById('pl-basic-meta-'+vid);
+  const adbPrem   = document.getElementById('pl10-adb-prem-'+vid);
+  const tdbPrem   = document.getElementById('pl10-tdb-prem-'+vid);
+  if (totalCard) totalCard.textContent = '₱'+fmt2(newTotal);
+  if (totalSub)  totalSub.textContent  = 'Pay for '+targetVar+' years only';
+  if (totalPrem) totalPrem.textContent = '₱'+fmt2(newTotal);
+  if (basicPrem) basicPrem.textContent = '₱'+fmt2(newBasic);
+  if (basicName) basicName.textContent = 'Sun Life Premier Legacy '+targetVar;
+  if (basicMeta) basicMeta.innerHTML   = 'Basic Plan · '+targetVar+'-Year Pay · '+(document.getElementById('view_'+vid)?.querySelector('.badge-strip span:last-child')?.textContent||'Non-Smoker');
+  if (adbPrem)   adbPrem.textContent   = '₱'+fmt2(newADB);
+  if (tdbPrem)   tdbPrem.textContent   = '₱'+fmt2(newTDB);
+
+  const view = document.getElementById('view_'+vid);
+  if (view) {
+    const titleEl = view.querySelector('.doc-title');
+    const tagEl   = view.querySelector('.product-type-tag');
+    const badges  = view.querySelectorAll('.badge-strip span');
+    if (titleEl)   titleEl.innerHTML = 'Sun Life Premier<br>Legacy '+targetVar;
+    if (tagEl)     tagEl.textContent = tagEl.textContent.replace(/\d+-Year Pay/, targetVar+'-Year Pay');
+    if (badges[0]) badges[0].textContent = targetVar+'-Year Pay';
+  }
+
+  // Flag whether the illustration table below reflects this variant exactly.
+  const illusFlag = document.getElementById('pl-illus-flag-'+vid);
+  if (illusFlag) illusFlag.style.display = isUploaded ? 'none' : '';
+});
 function buildEL5IllusHTML(id, pay, annP, ageNum, rows, fund) {
   const fmtN2 = n => Math.round(n).toLocaleString('en-US');
 
@@ -5538,6 +5623,7 @@ function renderPL10View(id,d,pdfUrl){
   });
   const illusHTML=(d.rows&&d.rows.length)?(
     '<div class="section">'+st('📊','Living & Death Benefit Illustration — Key Years (Current Dividend Scale @ '+d.rateHigh+'%)')+
+    '<p id="pl-illus-flag-'+id+'" style="display:none;font-size:11.5px;line-height:1.6;background:var(--amber-light);border-left:3px solid var(--amber);color:#7A5C10;padding:10px 12px;border-radius:4px;margin-bottom:12px;">⚠️ This illustration reflects the <strong>uploaded pay period only</strong> — switching the variant tab above updates the premium figures but not this table. Upload the actual proposal for the selected pay period to see its exact year-by-year illustration.</p>'+
     '<table class="data-table"><thead><tr><th style="text-align:center;">Attained Age</th><th style="text-align:center;">Cumulative Premiums Paid</th><th style="text-align:center;">Guaranteed Cash Value</th><th style="text-align:center;">Illustrative Accum. Dividend</th><th style="text-align:center;">Total Living Benefit</th><th style="text-align:center;">Total Death Benefit</th></tr></thead><tbody>'+illusRowsHTML+'</tbody></table>'+
     '<p style="font-size:11px;color:var(--muted);margin-top:10px;">Total Living Benefit = Guaranteed Cash Value + Illustrative Accumulated Dividend. Total Death Benefit = Guaranteed Death Benefit (₱'+fmtN2(d.gdbInt)+', flat) + Illustrative Accumulated Dividend. Dividends are non-guaranteed. A low-dividend scenario at '+d.rateLow+'% is also disclosed in the full proposal.</p>'+
     '</div>'
@@ -5547,7 +5633,7 @@ function renderPL10View(id,d,pdfUrl){
   div.className='proposal-view'; div.id='view_'+id;
   div.innerHTML=
     '<div class="doc-header"><div class="doc-header-inner"><div>'
-      +'<div class="doc-title">Sun Life Premier<br>Legacy 10</div>'
+      +'<div class="doc-title">Sun Life Premier<br>Legacy '+d.payYears+'</div>'
       +'<div class="doc-subtitle">Whole Life Insurance Policy Summary</div>'
       +'<div class="product-type-tag">🏛️ Whole Life · '+d.payYears+'-Year Pay</div>'
     +'</div><div>'
@@ -5563,13 +5649,41 @@ function renderPL10View(id,d,pdfUrl){
     +'</div>'
     +'<div class="doc-body" id="docbody_'+id+'">'
     +'<div class="notice"><span style="font-size:14px;flex-shrink:0;">⚠</span><span>This is an <strong>illustration only — not a contract of insurance</strong>. Dividends are non-guaranteed and may vary from what is shown.</span></div>'
-    +'<div class="section">'+st('💳','Premium at a Glance')
-      +'<div class="premium-grid"><div class="p-card hl"><div class="p-card-label">Total Annual Premium</div><div class="p-card-value">₱'+d.totalPremium+'</div><div class="p-card-sub">Pay for '+d.payYears+' years only</div></div><div class="p-card"><div class="p-card-label">Face Amount</div><div class="p-card-value">₱'+fmtN2(d.faceInt)+'</div><div class="p-card-sub">Guaranteed Death Benefit: 200% of Face Amount</div></div><div class="p-card"><div class="p-card-label">Coverage Duration</div><div class="p-card-value">Until '+d.coverageAge+'</div><div class="p-card-sub">Whole life protection</div></div></div>'
+    +(function(){
+      const uploadedYr = (d.payYears===5||d.payYears===10) ? d.payYears : null;
+      const ratio = uploadedYr ? d.totalPremiumInt/PL_REF[uploadedYr].total : 1;
+      const est5  = uploadedYr ? PL_REF[5].total*ratio  : d.totalPremiumInt;
+      const est10 = uploadedYr ? PL_REF[10].total*ratio : d.totalPremiumInt;
+      const savings = est5-est10; // Legacy 10 always costs less per year than Legacy 5 for the same coverage
+      return '<div class="section">'+st('💳','Premium at a Glance')
+      +'<div class="variant-switcher" id="pl-var-sw-'+id+'">'
+      +'<div class="variant-switcher-label">🔀 &nbsp;Compare Variants — Same Coverage, Different Pay Period</div>'
+      +'<div class="variant-tabs">'
+        +'<button class="var-tab'+(d.payYears===5?' active':'')+'" data-pl-vid="'+id+'" data-pl-var="5" data-pl-uploaded="'+d.payYears+'" data-pl-base="'+d.totalPremiumInt+'">'
+          +'<span class="vt-name">Legacy 5</span>'
+          +'<span class="vt-factor">5-yr pay</span>'
+          +'<span class="vt-amt" id="pl-amt5-'+id+'">₱'+fmtN2(est5)+'</span>'
+        +'</button>'
+        +'<button class="var-tab'+(d.payYears===10?' active':'')+'" data-pl-vid="'+id+'" data-pl-var="10" data-pl-uploaded="'+d.payYears+'" data-pl-base="'+d.totalPremiumInt+'">'
+          +'<span class="vt-name">Legacy 10</span>'
+          +'<span class="vt-factor">10-yr pay · lower annual cost</span>'
+          +'<span class="vt-amt" id="pl-amt10-'+id+'">₱'+fmtN2(est10)+'</span>'
+        +'</button>'
+      +'</div>'
+      +'<div class="var-savings-bar'+(d.payYears!==10?' show':'')+'" id="pl-savings-'+id+'">'
+        +'✅ &nbsp;<span id="pl-sv-name-'+id+'">Legacy 10</span>'
+        +' saves you <span id="pl-sv-amt-'+id+'">₱'+fmtN2(savings)+'/yr</span>'
+        +' vs Legacy 5 (longer pay = lower annual cost)'
+      +'</div>'
+      +(uploadedYr?'':'<p style="font-size:11px;color:var(--amber);margin-top:8px;">📐 Uploaded pay period ('+d.payYears+' years) isn\'t 5 or 10 — variant estimates unavailable.</p>')
+      +'</div>'
+      +'<div class="premium-grid"><div class="p-card hl"><div class="p-card-label">Total Annual Premium</div><div class="p-card-value" id="pl-total-card-'+id+'">₱'+d.totalPremium+'</div><div class="p-card-sub" id="pl-total-sub-'+id+'">Pay for '+d.payYears+' years only</div></div><div class="p-card"><div class="p-card-label">Face Amount</div><div class="p-card-value">₱'+fmtN2(d.faceInt)+'</div><div class="p-card-sub">Guaranteed Death Benefit: 200% of Face Amount</div></div><div class="p-card"><div class="p-card-label">Coverage Duration</div><div class="p-card-value">Until '+d.coverageAge+'</div><div class="p-card-sub">Whole life protection</div></div></div>'
       +'<table class="data-table"><thead><tr><th>Component</th><th>Annual Premium</th></tr></thead><tbody>'
-      +'<tr><td><strong>Sun Life Premier Legacy 10</strong><br><span style="font-size:11px;color:var(--muted)">Basic Plan · '+d.payYears+'-Year Pay · '+d.smoker+'</span></td><td>₱'+d.basicPremium+'</td></tr>'
+      +'<tr id="pl-basic-row-'+id+'"><td><strong id="pl-basic-name-'+id+'">Sun Life Premier Legacy '+d.payYears+'</strong><br><span style="font-size:11px;color:var(--muted)" id="pl-basic-meta-'+id+'">Basic Plan · '+d.payYears+'-Year Pay · '+d.smoker+'</span></td><td id="pl-basic-prem-'+id+'">₱'+d.basicPremium+'</td></tr>'
       +renderRiderRows(d.riders||[],'pl10',id)
-      +'<tr class="total-row"><td><strong>Total Annual Premium</strong></td><td><strong>₱'+d.totalPremium+'</strong></td></tr>'
-      +'</tbody></table></div>'
+      +'<tr class="total-row"><td><strong>Total Annual Premium</strong></td><td><strong id="pl-total-prem-'+id+'">₱'+d.totalPremium+'</strong></td></tr>'
+      +'</tbody></table></div>';
+    })()
     +'<div class="section">'+st('🛡️','Core Benefits')
       +'<div class="benefits-grid">'
       +'<div class="benefit-card navy-bar"><div class="b-label">Guaranteed Death Benefit</div><div class="b-amount" style="font-size:20px;">₱'+fmtN2(d.gdbInt)+'</div><div class="b-desc">200% of the Face Amount — guaranteed from Day 1 of coverage until age '+d.coverageAge+', regardless of dividend performance.</div></div>'
