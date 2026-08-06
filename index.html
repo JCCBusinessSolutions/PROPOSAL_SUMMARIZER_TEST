@@ -2649,7 +2649,6 @@ document.addEventListener('click', function(e) {
   const newHIB   = hasCIBHIB ? PL_REF[targetVar].hib*ratio : null;
   const newTotal = PL_REF[targetVar].total*ratio;
   const isUploaded = targetVar === reg.uploadedVar;
-  const riderTypeChanged = (reg.uploadedVar===2) !== (targetVar===2); // crossing between CIB/HIB and ADB/TDB rider families
 
   const sw = document.getElementById('pl-var-sw-'+vid);
   if (sw) sw.querySelectorAll('.var-tab').forEach(b => b.classList.remove('active'));
@@ -2660,11 +2659,27 @@ document.addEventListener('click', function(e) {
     if (el) el.textContent = '₱'+fmtV(PL_REF[v].total*ratio);
   });
 
+  // Savings bar compares the currently-selected variant against the
+  // variant that was ACTUALLY uploaded (reg.uploadedVar) — not a fixed
+  // "vs Legacy 10" comparison — so the message stays accurate no matter
+  // which pay period the real proposal was for.
   const savBar = document.getElementById('pl-savings-'+vid);
   const svAmt  = document.getElementById('pl-sv-amt-'+vid);
+  const svName = document.getElementById('pl-sv-name-'+vid);
+  const svVs   = document.getElementById('pl-sv-vs-'+vid);
   if (savBar) {
-    if (targetVar === 10 || targetVar === 2) savBar.classList.remove('show');
-    else { savBar.classList.add('show'); if (svAmt) svAmt.textContent = '₱'+fmtV((PL_REF[5].total-PL_REF[10].total)*ratio)+'/yr'; }
+    if (isUploaded) {
+      savBar.classList.remove('show');
+    } else {
+      const diff = reg.uploadedTot - newTotal; // positive = target costs LESS per year than the uploaded variant
+      savBar.classList.add('show');
+      if (svName) svName.textContent = 'Legacy '+targetVar;
+      if (svVs)   svVs.textContent    = 'Legacy '+reg.uploadedVar;
+      if (svAmt) {
+        svAmt.textContent = '₱'+fmtV(Math.abs(diff))+'/yr';
+        savBar.querySelector('.sv-verb') && (savBar.querySelector('.sv-verb').textContent = diff>=0 ? 'saves you' : 'costs');
+      }
+    }
   }
 
   const totalCard = document.getElementById('pl-total-card-'+vid);
@@ -2702,11 +2717,6 @@ document.addEventListener('click', function(e) {
   if (tdbRow) tdbRow.style.display = hasADBTDB ? '' : 'none';
   if (cibRow) cibRow.style.display = hasCIBHIB ? '' : 'none';
   if (hibRow) hibRow.style.display = hasCIBHIB ? '' : 'none';
-
-  // Rider-composition note — only relevant once the switcher crosses between
-  // the CIB/HIB (Legacy 2) and ADB/TDB (Legacy 5/10) rider families.
-  const riderNote = document.getElementById('pl-ridernote-'+vid);
-  if (riderNote) riderNote.style.display = riderTypeChanged ? '' : 'none';
 
   const view = document.getElementById('view_'+vid);
   if (view) {
@@ -5727,7 +5737,6 @@ function renderPL10View(id,d,pdfUrl){
       const est2  = uploadedYr ? PL_REF[2].total*ratio  : d.totalPremiumInt;
       const est5  = uploadedYr ? PL_REF[5].total*ratio  : d.totalPremiumInt;
       const est10 = uploadedYr ? PL_REF[10].total*ratio : d.totalPremiumInt;
-      const savings = est5-est10; // Legacy 10 always costs less per year than Legacy 5 for the same coverage
       return '<div class="section">'+st('💳','Premium at a Glance')
       +'<div class="variant-switcher" id="pl-var-sw-'+id+'">'
       +'<div class="variant-switcher-label">🔀 &nbsp;Compare Variants — Same Coverage, Different Pay Period</div>'
@@ -5748,12 +5757,11 @@ function renderPL10View(id,d,pdfUrl){
           +'<span class="vt-amt" id="pl-amt10-'+id+'">₱'+fmtN2(est10)+'</span>'
         +'</button>'
       +'</div>'
-      +'<div class="var-savings-bar'+(d.payYears===5?' show':'')+'" id="pl-savings-'+id+'">'
-        +'✅ &nbsp;<span id="pl-sv-name-'+id+'">Legacy 10</span>'
-        +' saves you <span id="pl-sv-amt-'+id+'">₱'+fmtN2(savings)+'/yr</span>'
-        +' vs Legacy 5 (longer pay = lower annual cost)'
+      +'<div class="var-savings-bar" id="pl-savings-'+id+'">'
+        +'✅ &nbsp;<span id="pl-sv-name-'+id+'">Legacy '+d.payYears+'</span>'
+        +' <span class="sv-verb">saves you</span> <span id="pl-sv-amt-'+id+'">₱0/yr</span>'
+        +' vs <span id="pl-sv-vs-'+id+'">Legacy '+d.payYears+'</span> (the proposal you uploaded)'
       +'</div>'
-      +'<p id="pl-ridernote-'+id+'" style="display:none;font-size:11.5px;line-height:1.6;background:var(--amber-light);border-left:3px solid var(--amber);color:#7A5C10;padding:10px 12px;border-radius:4px;margin-top:10px;">⚠️ Legacy 2 is a different product from Legacy 5/10 with a different rider set (Critical Illness + Hospital Income Benefit instead of Accidental Death + Total Disability Benefit). Riders shown below reflect only what the actual proposal you uploaded includes — the other variant\'s riders aren\'t shown since there\'s no real figure to display.</p>'
       +(uploadedYr?'':'<p style="font-size:11px;color:var(--amber);margin-top:8px;">📐 Uploaded pay period ('+d.payYears+' years) isn\'t 2, 5 or 10 — variant estimates unavailable.</p>')
       +'</div>'
       +'<div class="premium-grid"><div class="p-card hl"><div class="p-card-label">Total Annual Premium</div><div class="p-card-value" id="pl-total-card-'+id+'">₱'+d.totalPremium+'</div><div class="p-card-sub" id="pl-total-sub-'+id+'">Pay for '+d.payYears+' years only</div></div><div class="p-card"><div class="p-card-label">Face Amount</div><div class="p-card-value">₱'+fmtN2(d.faceInt)+'</div><div class="p-card-sub">Guaranteed Death Benefit: 200% of Face Amount</div></div><div class="p-card"><div class="p-card-label">Coverage Duration</div><div class="p-card-value">Until '+d.coverageAge+'</div><div class="p-card-sub">Whole life protection</div></div></div>'
