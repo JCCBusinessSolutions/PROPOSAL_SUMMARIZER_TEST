@@ -545,7 +545,7 @@ button{min-height:36px;}
     </div>
     <div class="prod-tab" id="tab_pl10" onclick="switchProduct('pl10')">
       <div class="prod-tab-icon">🏛️</div>
-      <div class="prod-tab-name">Premier Legacy 10<br><span style="font-weight:400;opacity:0.7;">Whole Life</span></div>
+      <div class="prod-tab-name">Premier Legacy 2/5/10<br><span style="font-weight:400;opacity:0.7;">Whole Life</span></div>
     </div>
     <div class="prod-tab" id="tab_spe10" onclick="switchProduct('spe10')">
       <div class="prod-tab-icon">🌟</div>
@@ -921,7 +921,7 @@ function safeAge(v,fallback){const n=parseInt(v);return isNaN(n)?fallback:n;}
 // distinctive title text on page 1. Before parsing anything, check that text
 // against the currently selected tab so an EL5 PDF dropped on the SLSI tab
 // (etc.) gets a clear error instead of silently producing garbage data.
-const PRODUCT_LABELS={slsi:'Sun Life Secure Income (SLSI)',sfw:'SUN Fit and Well Advantage (SFW)',el5:'EasyLink Protect',mx1:'MaxiLink One',mxprime:'Sun MaxiLink Prime',spm:'Sun Peso Maximizer (ProIncome)',pl10:'Sun Life Premier Legacy 10',spe10:'SUN Smarter Life Elite Peso 10'};
+const PRODUCT_LABELS={slsi:'Sun Life Secure Income (SLSI)',sfw:'SUN Fit and Well Advantage (SFW)',el5:'EasyLink Protect',mx1:'MaxiLink One',mxprime:'Sun MaxiLink Prime',spm:'Sun Peso Maximizer (ProIncome)',pl10:'Sun Life Premier Legacy 2/5/10',spe10:'SUN Smarter Life Elite Peso 10'};
 const PRODUCT_MARKERS=[
   {key:'spe10', rx:/SUN\s*Smarter\s*Life\s*Elite\s*Peso/i}, // check before generic "Sun Life Secure Income" family — distinctive product name
   {key:'pl10', rx:/Sun\s*Life\s*Premier\s*Legacy/i},  // check before generic "Sun Life Secure Income" family — distinctive whole-life product name
@@ -948,8 +948,8 @@ function switchProduct(prod){
   document.getElementById('tab_spm').classList.toggle('active',prod==='spm');
   document.getElementById('tab_pl10').classList.toggle('active',prod==='pl10');
   document.getElementById('tab_spe10').classList.toggle('active',prod==='spe10');
-  document.getElementById('uploadLabel').textContent=prod==='slsi'?'Upload SLSI 5 / 10 / 15 PDF':prod==='sfw'?'Upload SFW Adv 10 / 15 / 20 PDF':prod==='el5'?'Upload EasyLink 5 / 10 PDF':prod==='mx1'?'Upload MaxiLink One PDF':prod==='mxprime'?'Upload MaxiLink Prime PDF':prod==='pl10'?'Upload Premier Legacy 10 PDF':prod==='spe10'?'Upload Elite Peso 10 PDF':'Upload Sun Peso Maximizer PDF';
-  document.getElementById('proposalListLabel').textContent=prod==='slsi'?'SLSI 5 / 10 / 15 Proposals':prod==='sfw'?'SFW Proposals (Adv 10 / 15 / 20)':prod==='el5'?'EasyLink 5 / 10 Proposals':prod==='mx1'?'MaxiLink One Proposals':prod==='mxprime'?'MaxiLink Prime Proposals':prod==='pl10'?'Premier Legacy 10 Proposals':prod==='spe10'?'Elite Peso 10 Proposals':'Sun Peso Maximizer Proposals';
+  document.getElementById('uploadLabel').textContent=prod==='slsi'?'Upload SLSI 5 / 10 / 15 PDF':prod==='sfw'?'Upload SFW Adv 10 / 15 / 20 PDF':prod==='el5'?'Upload EasyLink 5 / 10 PDF':prod==='mx1'?'Upload MaxiLink One PDF':prod==='mxprime'?'Upload MaxiLink Prime PDF':prod==='pl10'?'Upload Premier Legacy 2 / 5 / 10 PDF':prod==='spe10'?'Upload Elite Peso 10 PDF':'Upload Sun Peso Maximizer PDF';
+  document.getElementById('proposalListLabel').textContent=prod==='slsi'?'SLSI 5 / 10 / 15 Proposals':prod==='sfw'?'SFW Proposals (Adv 10 / 15 / 20)':prod==='el5'?'EasyLink 5 / 10 Proposals':prod==='mx1'?'MaxiLink One Proposals':prod==='mxprime'?'MaxiLink Prime Proposals':prod==='pl10'?'Premier Legacy 2 / 5 / 10 Proposals':prod==='spe10'?'Elite Peso 10 Proposals':'Sun Peso Maximizer Proposals';
   proposals.forEach(p=>{
     const item=document.getElementById('sidebar_'+p.id);
     const view=document.getElementById('view_'+p.id);
@@ -1180,7 +1180,7 @@ function renderRiderRows(riders, idPrefix, id){
     const amtCell=r.free
       ? '<td style="color:var(--green);font-weight:700;">FREE</td>'
       : '<td id="'+idPrefix+'-'+r.key.toLowerCase()+'-prem-'+id+'" data-base="'+r.premInt+'">₱'+r.prem+'</td>';
-    return '<tr><td>'+r.label+' ('+r.short+') <span class="rider-tag">Rider</span>'+covLine+'</td>'+amtCell+'</tr>';
+    return '<tr id="'+idPrefix+'-rrow-'+r.key.toLowerCase()+'-'+id+'">'+'<td>'+r.label+' ('+r.short+') <span class="rider-tag">Rider</span>'+covLine+'</td>'+amtCell+'</tr>';
   }).join('');
 }
 
@@ -1349,12 +1349,20 @@ const SLSI_FACTOR_BASIC = {5:2.7198, 10:1.3880, 15:1.0000};
 const SLSI_FACTOR_ADB   = {5:3.1111, 10:1.9697, 15:1.0000};
 const SLSI_FACTOR_WPD   = {5:1.7614, 10:1.1388, 15:1.0000};
 const SLSI_FACTOR_TOTAL = {5:2.6792, 10:1.3831, 15:1.0000};
-// Premier Legacy (PL5/PL10) cross-variant reference — exact figures from two
-// real proposals for the same insured (age 54, Male, Non-Smoker, Face 25M),
-// one on each pay period. Used the same way SLSI_REF is: scale these
+// Premier Legacy (PL2/PL5/PL10) cross-variant reference — exact figures from
+// three real proposals for the same insured (age 54, Male, Non-Smoker, Face
+// 25M), one on each pay period. Used the same way SLSI_REF is: scale these
 // reference component amounts by (uploaded total ÷ reference total for the
-// uploaded variant) to estimate the other variant's premium.
+// uploaded variant) to estimate another variant's premium.
+// NOTE: Legacy 2 is a distinct product name ("Sun Life Premier Legacy 2")
+// with a different rider set than Legacy 5/10 — CIB + HIB instead of
+// ADB + TDB — confirmed against a real proposal. There is no real-world
+// equivalent rider to scale across variant types, so cib/hib are only ever
+// applied when the TARGET variant is 2, and adb/tdb only when the target is
+// 5 or 10. The switcher shows/hides the matching table rows accordingly
+// rather than fabricating a rider that variant doesn't actually offer.
 const PL_REF = {
+  2:  {basic:13231250.00, cib:364350.00, hib:31700.00, total:13627300.00},
   5:  {basic:5326000.00, adb:51750.00, tdb:129066.00, total:5506816.00},
   10: {basic:2750500.00, adb:29250.00, tdb:96735.30,  total:2876485.30}
 };
@@ -2603,13 +2611,18 @@ document.addEventListener('click', function(e) {
   }
 });
 
-// ── PL5/PL10 VARIANT SWITCHER — scales premium components using the
-// PL_REF table derived from two real proposals (same insured, both pay
-// periods). Simpler than SLSI's: only the premium figures update, since
-// this product's illustration table is a single continuous age-indexed
-// series rather than per-variant reference rows, so it isn't rebuilt here —
-// the disclaimer note makes clear the illustration reflects the uploaded
-// variant only. ──
+// ── PL2/PL5/PL10 VARIANT SWITCHER — scales premium components using the
+// PL_REF table derived from three real proposals (same insured, three pay
+// periods). Only the premium figures update, since this product's
+// illustration table is a single continuous age-indexed series rather than
+// per-variant reference rows, so it isn't rebuilt here — the disclaimer note
+// makes clear the illustration reflects the uploaded variant only.
+//
+// Legacy 2 is a distinct product ("Sun Life Premier Legacy 2") with a
+// different rider set (CIB + HIB) than Legacy 5/10 (ADB + TDB) — there is no
+// real equivalent to scale across variant types, so this handler shows only
+// the rider row(s) that actually exist for the selected target variant and
+// hides the other set, rather than fabricating a rider figure. ──
 const plVariantRegistry = {};
 document.addEventListener('click', function(e) {
   const btn = e.target.closest('[data-pl-var]');
@@ -2619,7 +2632,7 @@ document.addEventListener('click', function(e) {
   const targetVar    = parseInt(btn.dataset.plVar);
   const uploadedVar  = parseInt(btn.dataset.plUploaded);
   const uploadedTot  = parseFloat(btn.dataset.plBase);
-  if (!PL_REF[uploadedVar] || !PL_REF[targetVar]) return; // uploaded pay period isn't 5 or 10 — nothing to scale from
+  if (!PL_REF[uploadedVar] || !PL_REF[targetVar]) return; // uploaded pay period isn't 2, 5 or 10 — nothing to scale from
 
   if (!plVariantRegistry[vid]) plVariantRegistry[vid] = { uploadedTot, uploadedVar };
   const reg = plVariantRegistry[vid];
@@ -2628,16 +2641,21 @@ document.addEventListener('click', function(e) {
   const fmt2 = n => n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 
   const newBasic = PL_REF[targetVar].basic*ratio;
-  const newADB   = PL_REF[targetVar].adb*ratio;
-  const newTDB   = PL_REF[targetVar].tdb*ratio;
+  const hasADBTDB = targetVar===5 || targetVar===10;
+  const hasCIBHIB = targetVar===2;
+  const newADB   = hasADBTDB ? PL_REF[targetVar].adb*ratio : null;
+  const newTDB   = hasADBTDB ? PL_REF[targetVar].tdb*ratio : null;
+  const newCIB   = hasCIBHIB ? PL_REF[targetVar].cib*ratio : null;
+  const newHIB   = hasCIBHIB ? PL_REF[targetVar].hib*ratio : null;
   const newTotal = PL_REF[targetVar].total*ratio;
   const isUploaded = targetVar === reg.uploadedVar;
+  const riderTypeChanged = (reg.uploadedVar===2) !== (targetVar===2); // crossing between CIB/HIB and ADB/TDB rider families
 
   const sw = document.getElementById('pl-var-sw-'+vid);
   if (sw) sw.querySelectorAll('.var-tab').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
 
-  [5,10].forEach(v => {
+  [2,5,10].forEach(v => {
     const el = document.getElementById('pl-amt'+v+'-'+vid);
     if (el) el.textContent = '₱'+fmtV(PL_REF[v].total*ratio);
   });
@@ -2645,7 +2663,7 @@ document.addEventListener('click', function(e) {
   const savBar = document.getElementById('pl-savings-'+vid);
   const svAmt  = document.getElementById('pl-sv-amt-'+vid);
   if (savBar) {
-    if (targetVar === 10) savBar.classList.remove('show');
+    if (targetVar === 10 || targetVar === 2) savBar.classList.remove('show');
     else { savBar.classList.add('show'); if (svAmt) svAmt.textContent = '₱'+fmtV((PL_REF[5].total-PL_REF[10].total)*ratio)+'/yr'; }
   }
 
@@ -2657,14 +2675,38 @@ document.addEventListener('click', function(e) {
   const basicMeta = document.getElementById('pl-basic-meta-'+vid);
   const adbPrem   = document.getElementById('pl10-adb-prem-'+vid);
   const tdbPrem   = document.getElementById('pl10-tdb-prem-'+vid);
+  const cibPrem   = document.getElementById('pl10-cib-prem-'+vid);
+  const hibPrem   = document.getElementById('pl10-hib-prem-'+vid);
+  const adbRow    = document.getElementById('pl10-rrow-adb-'+vid);
+  const tdbRow    = document.getElementById('pl10-rrow-tdb-'+vid);
+  const cibRow    = document.getElementById('pl10-rrow-cib-'+vid);
+  const hibRow    = document.getElementById('pl10-rrow-hib-'+vid);
   if (totalCard) totalCard.textContent = '₱'+fmt2(newTotal);
   if (totalSub)  totalSub.textContent  = 'Pay for '+targetVar+' years only';
   if (totalPrem) totalPrem.textContent = '₱'+fmt2(newTotal);
   if (basicPrem) basicPrem.textContent = '₱'+fmt2(newBasic);
   if (basicName) basicName.textContent = 'Sun Life Premier Legacy '+targetVar;
   if (basicMeta) basicMeta.innerHTML   = 'Basic Plan · '+targetVar+'-Year Pay · '+(document.getElementById('view_'+vid)?.querySelector('.badge-strip span:last-child')?.textContent||'Non-Smoker');
-  if (adbPrem)   adbPrem.textContent   = '₱'+fmt2(newADB);
-  if (tdbPrem)   tdbPrem.textContent   = '₱'+fmt2(newTDB);
+  // Only touch rows that actually exist for THIS proposal's rider set — a
+  // Legacy 5/10 upload never has CIB/HIB rows, and a Legacy 2 upload never
+  // has ADB/TDB rows, since renderRiderRows only rendered what extractRiders
+  // found in the real uploaded PDF.
+  if (adbPrem && hasADBTDB) adbPrem.textContent = '₱'+fmt2(newADB);
+  if (tdbPrem && hasADBTDB) tdbPrem.textContent = '₱'+fmt2(newTDB);
+  if (cibPrem && hasCIBHIB) cibPrem.textContent = '₱'+fmt2(newCIB);
+  if (hibPrem && hasCIBHIB) hibPrem.textContent = '₱'+fmt2(newHIB);
+  // Toggle visibility of rider rows to match the target variant's real
+  // rider family — never show a scaled ADB/TDB figure under "Legacy 2" (it
+  // has no such rider) or a scaled CIB/HIB figure under "Legacy 5/10".
+  if (adbRow) adbRow.style.display = hasADBTDB ? '' : 'none';
+  if (tdbRow) tdbRow.style.display = hasADBTDB ? '' : 'none';
+  if (cibRow) cibRow.style.display = hasCIBHIB ? '' : 'none';
+  if (hibRow) hibRow.style.display = hasCIBHIB ? '' : 'none';
+
+  // Rider-composition note — only relevant once the switcher crosses between
+  // the CIB/HIB (Legacy 2) and ADB/TDB (Legacy 5/10) rider families.
+  const riderNote = document.getElementById('pl-ridernote-'+vid);
+  if (riderNote) riderNote.style.display = riderTypeChanged ? '' : 'none';
 
   const view = document.getElementById('view_'+vid);
   if (view) {
@@ -5531,7 +5573,10 @@ function parsePL10(text, filename){
   // Total Annual Premium — anchor first, but fall back to basic + riders sum
   // (which matches the proposal's own math exactly) if the label text isn't
   // matched, so the total never silently shows ₱0.00.
-  const totalPremiumRaw=get(/Total Annual Premium\s*:?\s*Ps\s*([\d,]+\.\d{2})/i,'');
+  // Some Premier Legacy proposals (confirmed on a real Legacy 2 PDF) label
+  // this row "Total Initial Annual Premium" rather than "Total Annual
+  // Premium" — the optional "Initial" keeps both wordings matching.
+  const totalPremiumRaw=get(/Total\s+(?:Initial\s+)?Annual Premium\s*:?\s*Ps\s*([\d,]+\.\d{2})/i,'');
   const computedTotalInt=basicPremiumInt+ridersPremiumTotal(riders);
   const totalPremiumInt=totalPremiumRaw?(parseFloat(totalPremiumRaw.replace(/,/g,''))||computedTotalInt):computedTotalInt;
   const totalPremium=totalPremiumRaw||totalPremiumInt.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -5548,10 +5593,11 @@ function parsePL10(text, filename){
 
   // Detailed year-by-year Benefit Illustration (Current Dividend Scale) —
   // spans 2 physical PDF pages with a repeated header; concatenate both
-  // fragments, then walk the age sequence (starts at the insured's current
-  // attained age, increments by 1 each row through age 100). The very first
-  // row omits the Guaranteed Cash Value figure (5 numbers instead of 6),
-  // since cash value hasn't accrued yet in year 1.
+  // fragments, then walk the row-index sequence. Whether that index is
+  // Attained Age or policy Duration (see isDurationIndexed below) and
+  // whether each row carries 5 or 6 numeric columns (see the need-detection
+  // loop below) are both detected from the real data rather than assumed,
+  // since both vary across real Premier Legacy proposals.
   const illusFrags=[...text.matchAll(/Benefit Illustration[\s\S]{0,120}?Accumulation Rate At\s*[\d.]+%([\s\S]*?)(?=Total Living Benefit is the sum|Dividend Information|$)/gi)];
   const illusText=illusFrags.map(m=>m[1]).join('\n');
   const rows=[];
@@ -5568,15 +5614,41 @@ function parsePL10(text, filename){
     let expectedAge=i<tokens.length?parseInt(tokens[i]):0;
     const startAge=expectedAge;
     const n=tokens.length;
+    // Some Premier Legacy proposals (confirmed on a real Legacy 2 PDF) print
+    // this table's row index as POLICY DURATION ("Dur": 1, 2, 3…) rather
+    // than Attained Age directly — both layouts exist for this product
+    // family. A duration column always starts at 1 (well below the
+    // insured's current age); an attained-age column starts at roughly
+    // ageNum+1. When duration-indexed, the real attained age is
+    // ageNum + duration, matching the "End of Year -> Att Age" relationship
+    // confirmed against the same proposal's Summary of Benefits table.
+    const isDurationIndexed = ageNum>0 && startAge<=ageNum;
+    // Only ROW 1's column count varies across real proposals — some
+    // products' first row omits Guaranteed Cash Value (need=5, GCV hasn't
+    // accrued yet), others (confirmed on a real Premier Legacy 2 proposal)
+    // show GCV starting at row 1 (need=6, same as every later row). Detect
+    // this ONCE up front by confirming the token right after row 1's block
+    // is row 2's index — safe because row 2 always immediately follows row
+    // 1 in the token stream (never across a page break). Every row after
+    // the first is matched the simple way (6 consecutive numeric tokens),
+    // exactly as before, so table page breaks — where the next real row can
+    // be preceded by a repeated text header rather than another number —
+    // keep working the same way they always have.
+    let firstRowNeed=6;
+    for(const need of [6,5]){
+      if(i+1+need<n && tokens.slice(i+1,i+1+need).every(isNum) && parseInt(tokens[i+1+need])===expectedAge+1){
+        firstRowNeed=need; break;
+      }
+    }
     while(i<n && expectedAge<=100){
       if(isNum(tokens[i]) && parseInt(tokens[i])===expectedAge){
-        const need=(expectedAge===startAge)?5:6;
+        const need=(expectedAge===startAge)?firstRowNeed:6;
         if(i+1+need<=n && tokens.slice(i+1,i+1+need).every(isNum)){
           const vals=tokens.slice(i+1,i+1+need).map(Number);
           let cumPrem,cashVal,cashDiv,accumDiv,livingBen,deathBen;
           if(need===5){ [cumPrem,cashDiv,accumDiv,livingBen,deathBen]=vals; cashVal=0; }
           else{ [cumPrem,cashVal,cashDiv,accumDiv,livingBen,deathBen]=vals; }
-          rows.push({age:expectedAge,cumPrem,cashVal,cashDiv,accumDiv,livingBen,deathBen});
+          rows.push({age:isDurationIndexed?(ageNum+expectedAge):expectedAge,cumPrem,cashVal,cashDiv,accumDiv,livingBen,deathBen});
           i+=1+need; expectedAge++;
           continue;
         }
@@ -5650,8 +5722,9 @@ function renderPL10View(id,d,pdfUrl){
     +'<div class="doc-body" id="docbody_'+id+'">'
     +'<div class="notice"><span style="font-size:14px;flex-shrink:0;">⚠</span><span>This is an <strong>illustration only — not a contract of insurance</strong>. Dividends are non-guaranteed and may vary from what is shown.</span></div>'
     +(function(){
-      const uploadedYr = (d.payYears===5||d.payYears===10) ? d.payYears : null;
+      const uploadedYr = (d.payYears===2||d.payYears===5||d.payYears===10) ? d.payYears : null;
       const ratio = uploadedYr ? d.totalPremiumInt/PL_REF[uploadedYr].total : 1;
+      const est2  = uploadedYr ? PL_REF[2].total*ratio  : d.totalPremiumInt;
       const est5  = uploadedYr ? PL_REF[5].total*ratio  : d.totalPremiumInt;
       const est10 = uploadedYr ? PL_REF[10].total*ratio : d.totalPremiumInt;
       const savings = est5-est10; // Legacy 10 always costs less per year than Legacy 5 for the same coverage
@@ -5659,23 +5732,29 @@ function renderPL10View(id,d,pdfUrl){
       +'<div class="variant-switcher" id="pl-var-sw-'+id+'">'
       +'<div class="variant-switcher-label">🔀 &nbsp;Compare Variants — Same Coverage, Different Pay Period</div>'
       +'<div class="variant-tabs">'
+        +'<button class="var-tab'+(d.payYears===2?' active':'')+'" data-pl-vid="'+id+'" data-pl-var="2" data-pl-uploaded="'+d.payYears+'" data-pl-base="'+d.totalPremiumInt+'">'
+          +'<span class="vt-name">Legacy 2</span>'
+          +'<span class="vt-factor">2-yr pay · CIB + HIB riders</span>'
+          +'<span class="vt-amt" id="pl-amt2-'+id+'">₱'+fmtN2(est2)+'</span>'
+        +'</button>'
         +'<button class="var-tab'+(d.payYears===5?' active':'')+'" data-pl-vid="'+id+'" data-pl-var="5" data-pl-uploaded="'+d.payYears+'" data-pl-base="'+d.totalPremiumInt+'">'
           +'<span class="vt-name">Legacy 5</span>'
-          +'<span class="vt-factor">5-yr pay</span>'
+          +'<span class="vt-factor">5-yr pay · ADB + TDB riders</span>'
           +'<span class="vt-amt" id="pl-amt5-'+id+'">₱'+fmtN2(est5)+'</span>'
         +'</button>'
         +'<button class="var-tab'+(d.payYears===10?' active':'')+'" data-pl-vid="'+id+'" data-pl-var="10" data-pl-uploaded="'+d.payYears+'" data-pl-base="'+d.totalPremiumInt+'">'
           +'<span class="vt-name">Legacy 10</span>'
-          +'<span class="vt-factor">10-yr pay · lower annual cost</span>'
+          +'<span class="vt-factor">10-yr pay · ADB + TDB riders</span>'
           +'<span class="vt-amt" id="pl-amt10-'+id+'">₱'+fmtN2(est10)+'</span>'
         +'</button>'
       +'</div>'
-      +'<div class="var-savings-bar'+(d.payYears!==10?' show':'')+'" id="pl-savings-'+id+'">'
+      +'<div class="var-savings-bar'+(d.payYears===5?' show':'')+'" id="pl-savings-'+id+'">'
         +'✅ &nbsp;<span id="pl-sv-name-'+id+'">Legacy 10</span>'
         +' saves you <span id="pl-sv-amt-'+id+'">₱'+fmtN2(savings)+'/yr</span>'
         +' vs Legacy 5 (longer pay = lower annual cost)'
       +'</div>'
-      +(uploadedYr?'':'<p style="font-size:11px;color:var(--amber);margin-top:8px;">📐 Uploaded pay period ('+d.payYears+' years) isn\'t 5 or 10 — variant estimates unavailable.</p>')
+      +'<p id="pl-ridernote-'+id+'" style="display:none;font-size:11.5px;line-height:1.6;background:var(--amber-light);border-left:3px solid var(--amber);color:#7A5C10;padding:10px 12px;border-radius:4px;margin-top:10px;">⚠️ Legacy 2 is a different product from Legacy 5/10 with a different rider set (Critical Illness + Hospital Income Benefit instead of Accidental Death + Total Disability Benefit). Riders shown below reflect only what the actual proposal you uploaded includes — the other variant\'s riders aren\'t shown since there\'s no real figure to display.</p>'
+      +(uploadedYr?'':'<p style="font-size:11px;color:var(--amber);margin-top:8px;">📐 Uploaded pay period ('+d.payYears+' years) isn\'t 2, 5 or 10 — variant estimates unavailable.</p>')
       +'</div>'
       +'<div class="premium-grid"><div class="p-card hl"><div class="p-card-label">Total Annual Premium</div><div class="p-card-value" id="pl-total-card-'+id+'">₱'+d.totalPremium+'</div><div class="p-card-sub" id="pl-total-sub-'+id+'">Pay for '+d.payYears+' years only</div></div><div class="p-card"><div class="p-card-label">Face Amount</div><div class="p-card-value">₱'+fmtN2(d.faceInt)+'</div><div class="p-card-sub">Guaranteed Death Benefit: 200% of Face Amount</div></div><div class="p-card"><div class="p-card-label">Coverage Duration</div><div class="p-card-value">Until '+d.coverageAge+'</div><div class="p-card-sub">Whole life protection</div></div></div>'
       +'<table class="data-table"><thead><tr><th>Component</th><th>Annual Premium</th></tr></thead><tbody>'
