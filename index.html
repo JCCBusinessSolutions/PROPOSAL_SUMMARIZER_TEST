@@ -1456,13 +1456,13 @@ function renderSLSIView(id,d,pdfUrl){
   const st=(icon,txt)=>'<div class="section-title">'+icon+' '+txt+'</div>';
   const bc=(cls,lbl,amt,desc)=>'<div class="benefit-card '+cls+'"><div class="b-label">'+lbl+'</div><div class="b-amount">₱'+amt+'</div><div class="b-desc">'+desc+'</div></div>';
   const illRows=buildSLSIIllusRows(slsiYears,d.rows,d.ageNum,d.faceInt,d.gcb,true);
-  // Average yearly dividend across the first 10 policy years, taken straight
-  // from the proposal's own Illustrative Cash Dividend column. Years are read
-  // in explicit numeric order (object key order is not guaranteed for the
-  // integer-like keys used here), and fall back to the verified reference
-  // table for any year the PDF didn't print.
+  // Average yearly dividend from the insured's current attained age through
+  // age 80, per the requested convention (applied consistently across every
+  // product). Policy year y corresponds to attained age = ageNum + y, so the
+  // loop runs while that attained age stays at or under 80. Falls back to the
+  // verified reference table for any year the PDF didn't print.
   const divYrs=[];
-  for(let y=1;y<=10;y++){
+  for(let y=1;d.ageNum+y<=80;y++){
     const rr=d.rows[y]||{};
     let cd=(rr.cashDiv!=null&&rr.cashDiv>0)?rr.cashDiv:null;
     if(cd==null&&SLSI_KEYYEARS.indexOf(y)>-1){
@@ -1471,6 +1471,7 @@ function renderSLSIView(id,d,pdfUrl){
     }
     if(cd!=null)divYrs.push(cd);
   }
+  const avgDivStartAge=d.ageNum+1;
   const avgDivVal=divYrs.length>0?fmtN(Math.round(divYrs.reduce((s,v)=>s+v,0)/divYrs.length)):'';
   const totalPremNum=parseFloat((d.totalPremium||'0').replace(/,/g,''))||0;
   // Compute total by summing all components
@@ -1538,7 +1539,7 @@ function renderSLSIView(id,d,pdfUrl){
     '<div class="section">'+st('🛡️','Core Benefits')+
     '<div class="benefits-grid">'+bc('navy-bar','Life Insurance Coverage',liD,'200% of Face Amount guaranteed from Day 1 until age 100.')+'<div class="benefit-card green-bar"><div class="b-label">Guaranteed Cash Benefit (from Year 6)</div><div class="b-amount" style="font-size:28px;">₱'+gcbD+' /year</div><div class="b-desc">6% of Face Amount annually starting end of Year 6 until age 100.</div></div>'+bc('','Centenarian Bonus (25% × 4)',c25+' each','25% of Face Amount paid at ages 80, 85, 90, and 95.')+bc('','Living Benefit Rider (LBR)','Up to 60% of Face','Advance if diagnosed terminally ill (≤12 months). FREE rider.')+
     (d.hasWPD?bc('','Waiver of Premium on Death (WPD)','Premium Waived','Waives remaining premiums if initial owner passes before age 21 of insured.'):'') +
-    '<div class="benefit-card gold-bar"><div class="b-label">Average Yearly Dividends</div><div class="b-amount-wrap"><span class="b-amount-prefix" style="font-size:28px;font-weight:700;">₱</span><input class="b-amount-input edit-cell" style="font-size:28px;font-weight:700;" value="'+avgDivVal+'" placeholder="enter amount"></div><div class="b-edit-hint">✎ Editable</div><div class="b-desc">Average of policy years 1–10. Non-guaranteed; based on 4.50% p.a.</div></div>'+
+    '<div class="benefit-card gold-bar"><div class="b-label">Average Yearly Dividends</div><div class="b-amount-wrap"><span class="b-amount-prefix" style="font-size:28px;font-weight:700;">₱</span><input class="b-amount-input edit-cell" style="font-size:28px;font-weight:700;" value="'+avgDivVal+'" placeholder="enter amount"></div><div class="b-edit-hint">✎ Editable</div><div class="b-desc">Average from age '+avgDivStartAge+' to 80. Non-guaranteed; based on 4.50% p.a. Dividends continue to be illustrated until age 100.</div></div>'+
     renderCoreBenefitRiderCards(d.riders||[], slsiYears)+
     '</div></div>'+
     '<div class="section">'+st('🎖️','Centenarian Bonus Schedule')+'<p style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.6;">25% of Face Amount (₱'+c25+') at each anniversary. Total = ₱'+fmtN(d.faceInt)+'.</p>'+
@@ -1732,15 +1733,12 @@ function renderSFWView(id,d,pdfUrl){
   // WPD; LBR is free). Uses the shared rider total so nothing is missed.
   const computedTotal=_p(d.basicPremium)+ridersPremiumTotal(d.riders||[]);
   const tD='₱'+fmtN(computedTotal);
-  // Average yearly dividend over the first 10 dividend-paying years, and the
-  // Loyalty Bonus (Special Paid-Up Bonus) credited at the END of the pay
-  // period. Both windows must follow payYears — they were previously hardcoded
-  // to the 10-pay schedule, which left the Loyalty Bonus card blank on any
-  // SFW15/SFW20 proposal because its PUB sits outside the scanned ages.
+  // Average yearly dividend from the insured's current attained age through
+  // age 80, per the requested convention (applied consistently across every
+  // product). d.rows is keyed directly by attained age for SFW.
   const divAges=[];
-  for(let a=ageNum+payYears+1;a<=ageNum+payYears+20;a++){const r=d.rows[a]||{};if(r.cashDiv&&r.cashDiv>0)divAges.push(r.cashDiv);}
-  const divSample=divAges.slice(0,10);
-  const avgDiv=divSample.length>0?Math.round(divSample.reduce((s,v)=>s+v,0)/divSample.length):null;
+  for(let a=ageNum;a<=80;a++){const r=d.rows[a]||{};if(r.cashDiv&&r.cashDiv>0)divAges.push(r.cashDiv);}
+  const avgDiv=divAges.length>0?Math.round(divAges.reduce((s,v)=>s+v,0)/divAges.length):null;
   let loyaltyBonus=null;
   for(let a=ageNum+payYears;a<=ageNum+payYears+2;a++){const v=(d.rows[a]||{}).pub;if(v&&v>0){loyaltyBonus=Math.round(v/Math.pow(SFW_ACC_RATE,a-(ageNum+payYears)));break;}}
   // ── VARIANT FACTOR (relative to FWA 10 base) ──
@@ -1833,7 +1831,7 @@ function renderSFWView(id,d,pdfUrl){
     '</tbody></table></div></div>'+
     '<div class="section">'+st('🛡️','Core Benefits')+
     '<div class="benefits-grid">'+bc('navy-bar','Life Insurance','₱'+fD,'Guaranteed death benefit until age 100.')+bc('','Major Critical Illness (64 conditions)','₱'+fD,'100% of Face Amount on any major CI diagnosis.')+bc('','Minor Critical Illness (34 conditions)','₱'+fmt(faceInt*0.2),'20% of Face per claim; up to 3 claims from different groups.')+bc('green-bar','Specific Cancer Booster (16 cancers)','₱'+fmt(faceInt*0.5),'Additional 50% on first cancer diagnosis.')+'<div class="benefit-card "><div class="b-label">Guaranteed Cash Benefit (from age 65)</div><div class="b-amount" style="font-size:28px;">₱'+fmt(faceInt*0.05)+' /year</div><div class="b-desc">5% of Face Amount for 8 years. Total: ₱'+fmt(faceInt*0.4)+'.</div></div>'+
-    '<div class="benefit-card gold-bar"><div class="b-label">Average Yearly Dividends</div><div class="b-amount-wrap"><span class="b-amount-prefix" style="font-size:28px;font-weight:700;">₱</span><input id="avgdiv-input-'+id+'" class="b-amount-input edit-cell" style="font-size:28px;font-weight:700;" value="'+(avgDiv?fmtN(avgDiv):'')+'" placeholder="enter amount"></div><div class="b-edit-hint">✎ Editable</div><div class="b-desc">From policy year <span id="avgdiv-yr-'+id+'">'+(payYears+1)+'</span> through age 100. Non-guaranteed at 4.50% p.a. <span id="avgdiv-est-'+id+'" style="display:none;color:var(--gold);font-weight:600;">· 📐 Estimated</span></div></div>'+
+    '<div class="benefit-card gold-bar"><div class="b-label">Average Yearly Dividends</div><div class="b-amount-wrap"><span class="b-amount-prefix" style="font-size:28px;font-weight:700;">₱</span><input id="avgdiv-input-'+id+'" class="b-amount-input edit-cell" style="font-size:28px;font-weight:700;" value="'+(avgDiv?fmtN(avgDiv):'')+'" placeholder="enter amount"></div><div class="b-edit-hint">✎ Editable</div><div class="b-desc">Average from age <span id="avgdiv-yr-'+id+'">'+ageNum+'</span> to 80. Non-guaranteed at 4.50% p.a. Dividends continue to be illustrated until age 100. <span id="avgdiv-est-'+id+'" style="display:none;color:var(--gold);font-weight:600;">· 📐 Estimated</span></div></div>'+
     '<div class="benefit-card gold-bar"><div class="b-label">Loyalty Bonus (Special Paid-Up Bonus)</div><div class="b-amount-wrap"><span class="b-amount-prefix" style="font-size:28px;font-weight:700;">₱</span><input id="loyalty-input-'+id+'" class="b-amount-input edit-cell" style="font-size:28px;font-weight:700;" value="'+(loyaltyBonus?fmtN(loyaltyBonus):'')+'" placeholder="enter amount"></div><div class="b-edit-hint">✎ Editable</div><div class="b-desc">One-time bonus at end of Year <span id="loyalty-yr-'+id+'">'+payYears+'</span>. <span id="loyalty-est-'+id+'" style="display:none;color:var(--gold);font-weight:600;">· 📐 Estimated</span></div></div>'+
     renderCoreBenefitRiderCards(d.riders||[], payYears)+
     '</div></div>'+
@@ -2358,22 +2356,23 @@ document.addEventListener('click', function(e) {
     if (bannerRetName2) bannerRetName2.textContent = SFW_VARIANT_NAMES[targetVar];
 
     // ── Core Benefits cards: Average Yearly Dividends + Loyalty Bonus (PUB) ──
-    // Prefer values read straight out of the rebuilt table (exact for the
-    // uploaded variant, estimator-derived otherwise); fall back to scaling the
-    // uploaded figure by the published cross-variant factor.
-    const tgtDivStart = dataReg.ageNum + targetVar + 1;
+    // Average Yearly Dividends uses a fixed age window (current age through
+    // 80) that doesn't depend on which pay-period variant is selected, since
+    // it's an age-based convention applied consistently across products.
+    // Loyalty Bonus (PUB) still depends on payYears, since it's credited at
+    // the end of the pay period.
     const tgtPubAge   = dataReg.ageNum + targetVar;
     const fmtC = n => Math.round(n).toLocaleString('en-US');
 
     const divVals = [];
-    for (let a = tgtDivStart; a < tgtDivStart + 10; a++) {
+    for (let a = dataReg.ageNum; a <= 80; a++) {
       const cd = (useRows[a] || {}).cashDiv;
       if (cd > 0) divVals.push(cd);
     }
     const avgEl = document.getElementById('avgdiv-input-'+vid);
     if (avgEl) {
       let avg = null;
-      if (divVals.length === 10) {
+      if (divVals.length > 0) {
         avg = divVals.reduce((s,v) => s+v, 0) / divVals.length;
       } else if (dataReg.baseAvgDiv) {
         avg = dataReg.baseAvgDiv * SFW_AVG_DIV_FACTOR[targetVar] / SFW_AVG_DIV_FACTOR[dataReg.payYears];
@@ -2381,9 +2380,9 @@ document.addEventListener('click', function(e) {
       if (avg) avgEl.value = fmtC(avg);
     }
     const avgYrEl = document.getElementById('avgdiv-yr-'+vid);
-    if (avgYrEl) avgYrEl.textContent = (targetVar + 1);
+    if (avgYrEl) avgYrEl.textContent = dataReg.ageNum;
     const avgEstEl = document.getElementById('avgdiv-est-'+vid);
-    if (avgEstEl) avgEstEl.style.display = isUploaded ? 'none' : '';
+    if (avgEstEl) avgEstEl.style.display = (isUploaded && divVals.length>0) ? 'none' : '';
 
     const loyEl = document.getElementById('loyalty-input-'+vid);
     if (loyEl) {
