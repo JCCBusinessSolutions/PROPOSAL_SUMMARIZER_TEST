@@ -5506,12 +5506,12 @@ function renderPL10View(id,d,pdfUrl){
   const st=(icon,txt)=>'<div class="section-title">'+icon+' '+txt+'</div>';
   const fmtN2=n=>Math.round(n).toLocaleString('en-US');
 
-  // Average Yearly Dividends — mean of Illustrative Cash Dividend across the
-  // pay-period years (1 through payYears), same convention as SLSI. d.rows
-  // is indexed by attained age starting at the first policy year, so the
-  // first payYears entries ARE policy years 1..payYears.
-  const divYrs=(d.rows||[]).slice(0,d.payYears).map(r=>r.cashDiv).filter(v=>v!=null&&v>0);
+  // Average Yearly Dividends — mean of Illustrative Cash Dividend from the
+  // insured's current attained age (the first row of the illustration table)
+  // through age 80, per the user's requested window (not just the pay period).
+  const divYrs=(d.rows||[]).filter(r=>r.age<=80).map(r=>r.cashDiv).filter(v=>v!=null&&v>0);
   const avgDivVal=divYrs.length>0?Math.round(divYrs.reduce((s,v)=>s+v,0)/divYrs.length).toLocaleString('en-US'):'';
+  const avgDivStartAge=(d.rows&&d.rows.length)?d.rows[0].age:d.ageNum;
 
   const keyRows=(d.rows||[]).filter(r=>{
     const yearsIn=r.age-d.ageNum+1;
@@ -5567,7 +5567,7 @@ function renderPL10View(id,d,pdfUrl){
       +'<div class="benefit-card navy-bar"><div class="b-label">Guaranteed Death Benefit</div><div class="b-amount" style="font-size:20px;">₱'+fmtN2(d.gdbInt)+'</div><div class="b-desc">200% of the Face Amount — guaranteed from Day 1 of coverage until age '+d.coverageAge+', regardless of dividend performance.</div></div>'
       +'<div class="benefit-card green-bar"><div class="b-label">Living Benefit Rider (LBR)</div><div class="b-amount" style="font-size:20px;">Up to '+d.lbrPct+'% of Face</div><div class="b-desc">Advance payment if diagnosed terminally ill (≤12 months life expectancy). FREE built-in rider. Aggregate cap across all Sun Life policies: ₱'+d.lbrCap+' Million.</div></div>'
       +'<div class="benefit-card"><div class="b-label">Mental Incapacity Benefit</div><div class="b-amount" style="font-size:20px;">Cash Value Access</div><div class="b-desc">A designated recipient may access the plan\'s cash value of dividend credits (or guaranteed value + dividend credits) if the policy owner is diagnosed with mental incapacity, coma, or major head trauma.</div></div>'
-      +'<div class="benefit-card gold-bar"><div class="b-label">Average Yearly Dividends</div><div class="b-amount-wrap"><span class="b-amount-prefix" style="font-size:28px;font-weight:700;">₱</span><input class="b-amount-input edit-cell" style="font-size:28px;font-weight:700;" value="'+avgDivVal+'" placeholder="enter amount"></div><div class="b-edit-hint">✎ Editable</div><div class="b-desc">Average of policy years 1–'+d.payYears+'. Non-guaranteed; based on '+d.rateHigh+'% p.a.</div></div>'
+      +'<div class="benefit-card gold-bar"><div class="b-label">Average Yearly Dividends</div><div class="b-amount-wrap"><span class="b-amount-prefix" style="font-size:28px;font-weight:700;">₱</span><input class="b-amount-input edit-cell" style="font-size:28px;font-weight:700;" value="'+avgDivVal+'" placeholder="enter amount"></div><div class="b-edit-hint">✎ Editable</div><div class="b-desc">Average from age '+avgDivStartAge+' to 80. Non-guaranteed; based on '+d.rateHigh+'% p.a. Dividends continue to be illustrated until age 100.</div></div>'
       +renderCoreBenefitRiderCards(d.riders||[], d.payYears)
       +'</div></div>'
     +illusHTML
