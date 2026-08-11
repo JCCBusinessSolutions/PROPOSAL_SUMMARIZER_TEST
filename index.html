@@ -537,7 +537,7 @@ button{min-height:36px;}
     </div>
     <div class="prod-tab" id="tab_mxprime" onclick="switchProduct('mxprime')">
       <div class="prod-tab-icon">✨</div>
-      <div class="prod-tab-name">Insurance and Investment<br><span style="font-weight:400;opacity:0.7;">Regular Pay</span></div>
+      <div class="prod-tab-name">Insurance and Investment<br><span style="font-weight:400;opacity:0.7;">10-Pay</span></div>
     </div>
     <div class="prod-tab" id="tab_spm" onclick="switchProduct('spm')">
       <div class="prod-tab-icon">🌏</div>
@@ -1383,7 +1383,7 @@ const SPE_REF = {
   5:  {basic:193160.00, adb:2450.00, tdb:3840.00, total:199450.00},
   10: {basic:96220.00,  adb:1435.00, tdb:2725.00, total:112205.00}
 };
-const SLSI_VARIANT_NAMES= {5:'SLSI 5', 10:'SLSI 10', 15:'SLSI 15'};
+const SLSI_VARIANT_NAMES= {5:'YFI 5', 10:'YFI 10', 15:'YFI 15'};
 const SLSI_VARIANT_YEARS= {5:5, 10:10, 15:15};
 
 // ── SLSI CASH BENEFIT ILLUSTRATION — verified key-year reference data ──
@@ -1618,7 +1618,7 @@ function parseSFW(text,filename){
   const payYears=isAdv20?20:isAdv15?15:10;
   const variantLabel=isAdv20?'Health Insurance Advantage 20':isAdv15?'Health Insurance Advantage 15':'Health Insurance Advantage 10';
   const variantShort=isAdv20?'Health Adv 20':isAdv15?'Health Adv 15':'Health Adv 10';
-  const variantTag=isAdv20?'🩺 SFW Adv 20':isAdv15?'🩺 SFW Adv 15':'🩺 SFW Adv 10';
+  const variantTag=isAdv20?'🩺 Health Adv 20':isAdv15?'🩺 Health Adv 15':'🩺 Health Adv 10';
 
   // --- Detect & extract riders via the shared scoped extractor ---
   // (recognises ADB, ADDD, TDB, CIB, HIB, WPD and the FREE LBR; scoping and
@@ -1767,7 +1767,7 @@ function renderSFWView(id,d,pdfUrl){
   const payYears=d.payYears||10;
   const variantLabel=d.variantLabel||'Health Insurance Advantage 10';
   const variantShort=d.variantShort||'Health Adv 10';
-  const variantTag=d.variantTag||'🩺 SFW Adv 10';
+  const variantTag=d.variantTag||'🩺 Health Adv 10';
   const divStartYr=payYears+1; // dividends start after premium period
   const yr10Start=ageNum+divStartYr,yr10End=ageNum+divStartYr+9;
   const _p=s=>parseFloat((s||'0').replace(/,/g,''))||0;
@@ -1834,17 +1834,17 @@ function renderSFWView(id,d,pdfUrl){
     '<div class="variant-switcher-label">🔀 &nbsp;Compare Variants — Same Coverage, Different Pay Period</div>'+
     '<div class="variant-tabs">'+
       '<button class="var-tab'+(payYears===10?' active':'')+'" data-vid="'+id+'" data-var="10" data-uploaded="'+payYears+'" data-total="'+computedTotal+'">'+
-        '<span class="vt-name">SFW Adv 10</span>'+
+        '<span class="vt-name">Health Adv 10</span>'+
         '<span class="vt-factor">Base · 10-yr pay</span>'+
         '<span class="vt-amt" id="var-amt10-'+id+'">₱'+fmtN(Math.round(SFW_VARIANT_REFPREM[10]*(computedTotal/SFW_VARIANT_REFPREM[payYears])))+'</span>'+
       '</button>'+
       '<button class="var-tab'+(payYears===15?' active':'')+'" data-vid="'+id+'" data-var="15" data-uploaded="'+payYears+'" data-total="'+computedTotal+'">'+
-        '<span class="vt-name">SFW Adv 15</span>'+
+        '<span class="vt-name">Health Adv 15</span>'+
         '<span class="vt-factor">×0.7194 · 15-yr pay</span>'+
         '<span class="vt-amt" id="var-amt15-'+id+'">₱'+fmtN(Math.round(SFW_VARIANT_REFPREM[15]*(computedTotal/SFW_VARIANT_REFPREM[payYears])))+'</span>'+
       '</button>'+
       '<button class="var-tab'+(payYears===20?' active':'')+'" data-vid="'+id+'" data-var="20" data-uploaded="'+payYears+'" data-total="'+computedTotal+'">'+
-        '<span class="vt-name">SFW Adv 20</span>'+
+        '<span class="vt-name">Health Adv 20</span>'+
         '<span class="vt-factor">×0.5836 · 20-yr pay</span>'+
         '<span class="vt-amt" id="var-amt20-'+id+'">₱'+fmtN(Math.round(SFW_VARIANT_REFPREM[20]*(computedTotal/SFW_VARIANT_REFPREM[payYears])))+'</span>'+
       '</button>'+
@@ -2000,7 +2000,7 @@ function renderSidebarItem(id,data,product){
   const item=document.createElement('div');item.className='proposal-item';item.id='sidebar_'+id;
   const name=product==='slsi'?data.insuredName:data.name;
   const meta=product==='slsi'?('Age '+(safeAge(data.ageNum!==undefined?data.ageNum:data.age,'?'))+' · '+(data.slsiVariantShort||'YFI 10')):product==='el5'?('Age '+(safeAge(data.age,'?'))+' · EL '+data.payPeriod):product==='mx1'?('Age '+(safeAge(data.age,'?'))+' · Single Premium ₱'+data.singlePremium):product==='spm'?('Age '+(safeAge(data.age,'?'))+' · Single Premium ₱'+data.singlePremium):product==='pl10'?('Age '+(safeAge(data.age,'?'))+' · Total Annual Premium ₱'+data.totalPremium):product==='spe10'?('Age '+(safeAge(data.age,'?'))+' · Total Annual Premium ₱'+data.totalPremium):('Age '+(safeAge(data.age,'?'))+' · '+(data.variantShort||'Health Adv 10')+' · Factor: '+(SFW_FACTORS[data.payYears||10]||1).toFixed(4));
-  const badge=product==='slsi'?(data.slsiVariantShort||'YFI'):product==='el5'?('EL'+data.payPeriod):product==='mx1'?'MX1':product==='spm'?'SPM':product==='pl10'?'PL10':product==='spe10'?'SPE10':'HIA';
+  const badge=product==='slsi'?(data.slsiVariantShort||'YFI'):product==='el5'?('EL'+data.payPeriod):product==='mx1'?'MXO':product==='spm'?'PFI':product==='pl10'?'LGP':product==='spe10'?'E2Y':'HIA';
   item.innerHTML='<div class="p-item-icon">📋</div><div class="p-item-info"><div class="p-item-name">'+name+' <span class="p-item-badge">'+badge+'</span></div><div class="p-item-meta">'+meta+'</div></div><button class="p-item-delete" onclick="deleteProposal(\''+id+'\',event)" title="Remove">✕</button>';
   item.onclick=()=>setActiveProposal(id);
   list.appendChild(item);
@@ -2087,14 +2087,14 @@ async function saveJPG(id,btn,page,product){
     if(canvas){const link=document.createElement('a');link.download=filename;link.href=canvas.toDataURL('image/jpeg',0.96);link.click();}
   }
   try{
-    if(product==='slsi'){if(page==='page1')await captureSection(['notice','premium','core','centenarian'],'SLSI10_'+safeName+'_Page1_Coverage.jpg');else await captureSection(['illustration','notes','footer'],'SLSI10_'+safeName+'_Page2_Illustration.jpg');}
+    if(product==='slsi'){if(page==='page1')await captureSection(['notice','premium','core','centenarian'],'YFI_'+safeName+'_Page1_Coverage.jpg');else await captureSection(['illustration','notes','footer'],'YFI_'+safeName+'_Page2_Illustration.jpg');}
     else if(product==='mx1'){if(page==='page1')await captureSection(['notice','premium','core'],'MXOne_'+safeName+'_Page1_Coverage.jpg');else await captureSection(['fundalloc','illustration','notes','footer'],'MXOne_'+safeName+'_Page2_Illustration.jpg');}
     else if(product==='mxprime'){if(page==='page1')await captureSection(['notice','premium','core'],'InsInv_'+safeName+'_Page1_Coverage.jpg');else await captureSection(['fundalloc','illustration','footer'],'InsInv_'+safeName+'_Page2_Illustration.jpg');}
     else if(product==='el5'){const isEL10=view.textContent.includes('10-Year Pay');const elPfx=isEL10?'EL10_':'EL5_';if(page==='page1')await captureSection(['notice','premium','core','dbschedule'],elPfx+safeName+'_Page1_Coverage.jpg');else await captureSection(['illustration','notes','footer'],elPfx+safeName+'_Page2_Illustration.jpg');}
-    else if(product==='spm'){if(page==='page1')await captureSection(['notice','premium','core'],'SunPesoMaximizer_'+safeName+'_Page1_Coverage.jpg');else await captureSection(['illustration','notes','footer'],'SunPesoMaximizer_'+safeName+'_Page2_Illustration.jpg');}
-    else if(product==='pl10'){if(page==='page1')await captureSection(['notice','premium','core'],'PremierLegacy10_'+safeName+'_Page1_Coverage.jpg');else await captureSection(['illustration','dividends','footer'],'PremierLegacy10_'+safeName+'_Page2_Illustration.jpg');}
-    else if(product==='spe10'){if(page==='page1')await captureSection(['notice','premium','core'],'ElitePeso10_'+safeName+'_Page1_Coverage.jpg');else await captureSection(['illustration','dividends','footer'],'ElitePeso10_'+safeName+'_Page2_Illustration.jpg');}
-    else{const ptTag=view.querySelector('.product-type-tag')?.textContent||'';const sfwPfx=ptTag.includes('20')?'SFW_Adv20_':ptTag.includes('15')?'SFW_Adv15_':'SFW_Adv10_';if(page==='page1')await captureSection(['notice','premium','core','ci','hospital'],sfwPfx+safeName+'_Page1_Coverage.jpg');else await captureSection(['dividends','retirement','notes','footer'],sfwPfx+safeName+'_Page2_Dividends.jpg');}
+    else if(product==='spm'){if(page==='page1')await captureSection(['notice','premium','core'],'PesoFixedIncome_'+safeName+'_Page1_Coverage.jpg');else await captureSection(['illustration','notes','footer'],'PesoFixedIncome_'+safeName+'_Page2_Illustration.jpg');}
+    else if(product==='pl10'){if(page==='page1')await captureSection(['notice','premium','core'],'LegacyPlan_'+safeName+'_Page1_Coverage.jpg');else await captureSection(['illustration','dividends','footer'],'LegacyPlan_'+safeName+'_Page2_Illustration.jpg');}
+    else if(product==='spe10'){if(page==='page1')await captureSection(['notice','premium','core'],'Every2YrFixedIncome_'+safeName+'_Page1_Coverage.jpg');else await captureSection(['illustration','dividends','footer'],'Every2YrFixedIncome_'+safeName+'_Page2_Illustration.jpg');}
+    else{const ptTag=view.querySelector('.product-type-tag')?.textContent||'';const sfwPfx=ptTag.includes('20')?'HealthAdv20_':ptTag.includes('15')?'HealthAdv15_':'HealthAdv10_';if(page==='page1')await captureSection(['notice','premium','core','ci','hospital'],sfwPfx+safeName+'_Page1_Coverage.jpg');else await captureSection(['dividends','retirement','notes','footer'],sfwPfx+safeName+'_Page2_Dividends.jpg');}
   }catch(err){console.error(err);alert('Could not save JPG.');}
   btn.classList.remove('saving');btn.innerHTML=origLabel;
 }
@@ -2316,7 +2316,7 @@ document.addEventListener('click', function(e) {
     const tagEl   = view.querySelector('.product-type-tag');
     const badges  = view.querySelectorAll('.badge-strip span');
     if (titleEl)   titleEl.innerHTML       = 'Health Insurance<br>Advantage '+targetVar;
-    if (tagEl)     tagEl.textContent       = '🩺 SFW Adv '+targetVar;
+    if (tagEl)     tagEl.textContent       = '🩺 Health Adv '+targetVar;
     if (badges[0]) badges[0].textContent   = targetVar+'-Year Pay';
   }
 
